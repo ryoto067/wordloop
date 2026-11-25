@@ -5,7 +5,8 @@ export function keepAwake(): () => void {
 
   const acquire = async () => {
     try {
-      if (!active || !navigator.wakeLock || document.visibilityState !== "visible") return;
+      if (!active || lock && !lock.released) return;
+      if (!navigator.wakeLock || document.visibilityState !== "visible") return;
       const l = await navigator.wakeLock.request("screen");
       if (!active) void l.release().catch(() => {});
       else lock = l;

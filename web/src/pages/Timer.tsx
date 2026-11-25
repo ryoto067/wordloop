@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
+import { AbandonButton } from "../components/AbandonButton";
 import { SlantButton } from "../components/SlantButton";
 import { OfflineError, api } from "../lib/api";
 import { elapsedSec, formatTime, loadDraft, saveDraft, type DraftWord, type RoundDraft } from "../lib/roundDraft";
@@ -120,6 +121,7 @@ export function Timer() {
           </SlantButton>
         </>
       )}
+      <AbandonButton />
     </>
   );
 }

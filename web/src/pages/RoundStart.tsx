@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 import { SlantButton } from "../components/SlantButton";
 import { OfflineError, api } from "../lib/api";
-import { saveDraft } from "../lib/roundDraft";
+import { loadDraft, resumePath, saveDraft } from "../lib/roundDraft";
 
 type WordSet = { id: string; name: string; wordCount: number; lastRoundNo: number; createdAt: string };
 
 export function RoundStart() {
   const navigate = useNavigate();
+  const [existingDraft] = useState(loadDraft);
   const [choice, setChoice] = useState<1 | 2 | 3 | 4>(1);
   const [fourth, setFourth] = useState(4);
   const [sets, setSets] = useState<WordSet[] | null>(null);
@@ -34,6 +35,9 @@ export function RoundStart() {
       alive = false;
     };
   }, [needSet, sets]);
+
+  // 途中の周回があるときは上書きせず、そちらを再開させる（捨てるのは やめる／破棄）
+  if (existingDraft) return <Navigate to={resumePath(existingDraft)} replace />;
 
   const start = () => {
     const set = sets?.find((s) => s.id === setId);

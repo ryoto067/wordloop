@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Navigate } from "react-router";
+import { AbandonButton } from "../components/AbandonButton";
 import { SlantButton, SlantLink } from "../components/SlantButton";
 import { OfflineError, api } from "../lib/api";
 import { useMe } from "../lib/MeContext";
@@ -22,7 +23,7 @@ export function Entry() {
   const [japanese, setJapanese] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [existing, setExisting] = useState<Record<string, Existing>>({});
-  const [saved, setSaved] = useState<{ count: number; sec: number; pending: boolean } | null>(null);
+  const [saved, setSaved] = useState<{ count: number; sec: number; pending: boolean; offline: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const enRef = useRef<HTMLInputElement>(null);
@@ -42,7 +43,7 @@ export function Entry() {
         </div>
         {saved.pending && (
           <p role="status" className="notice">
-            オフラインのため、つながったら保存します
+            {saved.offline ? "オフラインのため、つながったら保存します" : "保存待ちです。あとで自動で送信します"}
           </p>
         )}
         <SlantLink to="/">ホームへ</SlantLink>
@@ -50,6 +51,7 @@ export function Entry() {
     );
   }
   if (!draft || draft.mode !== "first") return <Navigate to="/" replace />;
+  if (!draft.stoppedAt) return <Navigate to="/round/timer" replace />;
 
   const update = (d: RoundDraft) => {
     saveDraft(d);
@@ -138,7 +140,7 @@ export function Entry() {
       });
       const pending = (await size()) > 0;
       clearDraft();
-      setSaved({ count: draft.words.length, sec, pending });
+      setSaved({ count: draft.words.length, sec, pending, offline: !navigator.onLine });
       refresh();
     } catch {
       setError("保存できませんでした。もう一度お試しください");
@@ -201,6 +203,7 @@ export function Entry() {
       <SlantButton disabled={draft.words.length === 0 || saving} onClick={() => void save()}>
         保存して完了
       </SlantButton>
+      <AbandonButton />
     </>
   );
 }

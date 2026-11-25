@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router";
+import { AbandonButton } from "../components/AbandonButton";
 import { FlashCard } from "../components/FlashCard";
 import { SlantButton, SlantLink } from "../components/SlantButton";
 import { api } from "../lib/api";
@@ -83,6 +84,7 @@ export function RoundTest() {
             <SlantButton disabled={sending} onClick={() => void submit()}>
               もう一度送る
             </SlantButton>
+            <AbandonButton />
           </>
         ) : (
           <p className="muted">結果を保存しています…</p>
@@ -106,6 +108,7 @@ export function RoundTest() {
         <div style={{ width: `${(index / words.length) * 100}%` }} />
       </div>
       <FlashCard key={word.id} front={word.english} back={word.japanese} onResult={answer} />
+      <AbandonButton />
     </>
   );
 }

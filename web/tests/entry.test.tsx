@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = new Map<string, unknown>();
@@ -43,9 +43,13 @@ afterEach(cleanup);
 
 const renderEntry = () =>
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={["/round/entry"]}>
       <MeProvider>
-        <Entry />
+        <Routes>
+          <Route path="/round/entry" element={<Entry />} />
+          <Route path="/" element={<p>HOME</p>} />
+          <Route path="/round/timer" element={<p>TIMER</p>} />
+        </Routes>
       </MeProvider>
     </MemoryRouter>,
   );
@@ -95,5 +99,27 @@ describe("Entry", () => {
     expect(post?.body.words).toEqual([{ english: "adapt", japanese: "適応する" }]);
     expect(post?.body.durationSec).toBeGreaterThanOrEqual(89);
     await waitFor(() => expect(loadDraft()).toBeNull());
+  });
+
+  it("やめる: 確認すると下書きを捨ててホームへ戻る", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    renderEntry();
+    fireEvent.click(screen.getByText("やめる"));
+    expect(window.confirm).toHaveBeenCalled();
+    expect(loadDraft()).toBeNull();
+    expect(screen.getByText("HOME")).toBeTruthy();
+  });
+
+  it("やめる: キャンセルなら何もしない", () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    renderEntry();
+    fireEvent.click(screen.getByText("やめる"));
+    expect(loadDraft()).not.toBeNull();
+  });
+
+  it("STOP 前の下書きならタイマーへ戻す", () => {
+    saveDraft({ mode: "first", roundNo: 1, startedAt: new Date().toISOString(), pausedMs: 0, words: [] });
+    renderEntry();
+    expect(screen.getByText("TIMER")).toBeTruthy();
   });
 });

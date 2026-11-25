@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { AbandonButton } from "../components/AbandonButton";
 import { Panel } from "../components/Panel";
 import { SlantLink } from "../components/SlantButton";
 import { StreakNumber } from "../components/StreakNumber";
@@ -30,7 +31,10 @@ export function Home() {
         </Link>
       )}
       {draft ? (
-        <SlantLink to={resumePath(draft)}>▶ 周回を再開</SlantLink>
+        <>
+          <SlantLink to={resumePath(draft)}>▶ 周回を再開</SlantLink>
+          <AbandonButton label="破棄" />
+        </>
       ) : (
         <SlantLink to="/round/start">▶ 暗記スタート</SlantLink>
       )}
