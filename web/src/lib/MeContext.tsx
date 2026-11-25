@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { OfflineError, api } from "./api";
-import { clearQueue, startAutoFlush } from "./offlineQueue";
+import { ANSWERED_KEY } from "./answered";
+import { claimQueue, clearQueue, clearQueueOwner, startAutoFlush } from "./offlineQueue";
 
 export type Me = {
   id: string;
@@ -31,15 +32,22 @@ function readCache(): Me | null {
   }
 }
 
+// 画面用のキャッシュだけ消す。送信待ちキューは残す（セッション切れで答えを失わないため）
 export function clearMeCache() {
   try {
     localStorage.removeItem(ME_CACHE_KEY);
     localStorage.removeItem(REVIEWS_TODAY_KEY);
+    localStorage.removeItem(ANSWERED_KEY);
   } catch {
     // 無視
   }
-  // 未送信キューもアカウントごとのデータなので一緒に消す
+}
+
+// ログアウト用。送信待ちキューも含めて、この端末のユーザーデータをすべて消す
+export function clearUserData() {
+  clearMeCache();
   clearQueue().catch(() => {});
+  clearQueueOwner().catch(() => {});
 }
 
 function writeCache(me: Me) {
@@ -57,22 +65,24 @@ export function MeProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
-  // 起動時と回線復帰時に、積んである送信を流す
-  useEffect(() => startAutoFlush(), []);
-
   useEffect(() => {
     let alive = true;
     api<Me>("/api/me")
-      .then((me) => {
+      .then(async (me) => {
+        // 別のアカウントなら、前の人の送信待ちと表示用キャッシュを捨てる
+        if (await claimQueue(me.id)) clearMeCache();
         if (!alive) return;
         writeCache(me);
         setState({ me, status: "ready" });
+        // 持ち主の確認後に、起動時・回線復帰時の送信を始める
+        startAutoFlush();
       })
       .catch((err: unknown) => {
         if (!alive) return;
         if (err instanceof OfflineError) {
           const cached = readCache();
           setState(cached ? { me: cached, status: "offline" } : { me: null, status: "error" });
+          startAutoFlush();
         } else if ((err as { status?: number }).status === 401) {
           // api() が /login へ遷移させる。前のアカウントの情報を残さない
           clearMeCache();

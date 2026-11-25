@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SlantLink } from "../components/SlantButton";
 import { FlashCard } from "../components/FlashCard";
 import { ApiError, OfflineError, api } from "../lib/api";
+import { answeredToday, markAnswered, unmarkAnswered } from "../lib/answered";
 import { REVIEWS_TODAY_KEY, useMe } from "../lib/MeContext";
 import { enqueue, flush, list, removeFromQueue } from "../lib/offlineQueue";
 
@@ -21,7 +22,7 @@ function readCachedToday(): TodayResponse | null {
 
 // 送信待ちの単語復習で、すでに答えたカードの id
 async function answeredWordIds(): Promise<Set<string>> {
-  const ids = new Set<string>();
+  const ids = answeredToday();
   for (const q of await list()) {
     const b = q.body as { kind?: string; id?: string } | null;
     if (q.kind === "reviews" && b?.kind === "word" && typeof b.id === "string") ids.add(b.id);
@@ -94,17 +95,28 @@ export function Review() {
     pending.current = p;
   }, []);
 
+  const busy = useRef(false);
   const answer = async (card: ReviewWord, result: "remembered" | "forgot") => {
+    if (busy.current) return;
+    busy.current = true;
     const clientId = crypto.randomUUID();
     setMessage(null);
+    try {
+      await enqueue({
+        id: clientId,
+        path: "/api/reviews",
+        kind: "reviews",
+        body: { clientId, kind: "word", id: card.id, result, reviewedAt: new Date().toISOString() },
+      });
+    } catch {
+      setMessage("保存できませんでした。もう一度お試しください");
+      return;
+    } finally {
+      busy.current = false;
+    }
+    markAnswered(card.id);
     setLast({ card, clientId });
     setIndex((i) => i + 1);
-    await enqueue({
-      id: clientId,
-      path: "/api/reviews",
-      kind: "reviews",
-      body: { clientId, kind: "word", id: card.id, result, reviewedAt: new Date().toISOString() },
-    });
     send();
   };
 
@@ -125,6 +137,7 @@ export function Review() {
       setMessage("取り消せませんでした");
       return;
     }
+    unmarkAnswered(last.card.id);
     setIndex((i) => i - 1);
     setLast(null);
   };

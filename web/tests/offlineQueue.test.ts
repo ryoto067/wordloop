@@ -8,7 +8,7 @@ vi.mock("idb-keyval", () => ({
 }));
 
 import { ApiError, OfflineError } from "../src/lib/api";
-import { clearQueue, enqueue, flush, size, type QueuedRequest } from "../src/lib/offlineQueue";
+import { claimQueue, clearQueue, enqueue, flush, size, type QueuedRequest } from "../src/lib/offlineQueue";
 
 const review = (id: string): QueuedRequest => ({
   id,
@@ -80,5 +80,38 @@ describe("offlineQueue", () => {
     const send = vi.fn().mockResolvedValue({});
     await flush(send);
     expect(send.mock.calls.map((c) => (c[1] as { n: string }).n)).toEqual(["x", "y"]);
+  });
+
+  it("まとめた送信が 400 なら 1 件ずつ送り直し、悪い 1 件だけ捨てる", async () => {
+    for (let i = 0; i < 15; i++) await enqueue(review(`r${i}`));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sent: string[] = [];
+    const send = vi.fn(async (_p: string, body: unknown) => {
+      const items = (body as { items: { clientId: string }[] }).items;
+      if (items.length > 1 || items[0].clientId === "r7") throw new ApiError(400, null);
+      sent.push(items[0].clientId);
+      return { streak: 3 };
+    });
+    await flush(send);
+    expect(sent).toHaveLength(14);
+    expect(sent).not.toContain("r7");
+    expect(await size()).toBe(0);
+  });
+
+  it.each([401, 403, 408, 429, 500])("%i では項目を残す", async (status) => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await enqueue(review("a"));
+    await enqueue(review("b"));
+    await flush(vi.fn().mockRejectedValue(new ApiError(status, null)));
+    expect(await size()).toBe(2);
+  });
+
+  it("別アカウントならキューを捨て、同じアカウントなら残す", async () => {
+    expect(await claimQueue("u1")).toBe(false);
+    await enqueue(review("a"));
+    expect(await claimQueue("u1")).toBe(false);
+    expect(await size()).toBe(1);
+    expect(await claimQueue("u2")).toBe(true);
+    expect(await size()).toBe(0);
   });
 });

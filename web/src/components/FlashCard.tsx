@@ -20,6 +20,11 @@ export function FlashCard({ front, back, onResult }: Props) {
 
   const onDown = (e: PointerEvent<HTMLButtonElement>) => {
     start.current = e.clientX;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId); // カード外で離しても pointerup を受け取る
+    } catch {
+      // 対応していない環境では何もしない
+    }
     moved.current = false;
   };
   const onMove = (e: PointerEvent<HTMLButtonElement>) => {

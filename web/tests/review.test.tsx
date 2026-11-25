@@ -9,7 +9,8 @@ vi.mock("idb-keyval", () => ({
   del: async (k: string) => void store.delete(k),
 }));
 
-import { REVIEWS_TODAY_KEY, MeProvider, ME_CACHE_KEY, clearMeCache, type Me } from "../src/lib/MeContext";
+import { ANSWERED_KEY } from "../src/lib/answered";
+import { REVIEWS_TODAY_KEY, MeProvider, ME_CACHE_KEY, clearMeCache, clearUserData, type Me } from "../src/lib/MeContext";
 import { list } from "../src/lib/offlineQueue";
 import { Review } from "../src/pages/Review";
 
@@ -136,11 +137,54 @@ describe("Review", () => {
     expect(calls.filter((c) => c.path === "/api/reviews/undo")).toHaveLength(2);
   });
 
-  it("clearMeCache は復習キャッシュと送信待ちも消す", async () => {
+  it("clearMeCache は画面キャッシュだけ消し、送信待ちは残す。clearUserData は全部消す", async () => {
     localStorage.setItem(REVIEWS_TODAY_KEY, "{}");
+    localStorage.setItem(ANSWERED_KEY, "{}");
     store.set("wl_offline_queue", [{ id: "a" }]);
     clearMeCache();
     expect(localStorage.getItem(REVIEWS_TODAY_KEY)).toBeNull();
+    expect(localStorage.getItem(ANSWERED_KEY)).toBeNull();
+    expect(store.has("wl_offline_queue")).toBe(true);
+    clearUserData();
     await waitFor(() => expect(store.has("wl_offline_queue")).toBe(false));
+  });
+
+  it("送信済みのカードは、オフラインで開き直しても出ない", async () => {
+    renderReview();
+    await flip("adapt");
+    fireEvent.click(screen.getByRole("button", { name: "覚えてた" }));
+    await screen.findByText("REVIEW ・ 2 / 2");
+    await waitFor(async () => {
+      expect(calls.some((c) => c.path === "/api/reviews")).toBe(true);
+      expect(await list()).toHaveLength(0);
+    });
+    cleanup();
+    online = false;
+    renderReview();
+    await screen.findByText("REVIEW ・ 1 / 1");
+    expect(screen.getByRole("button", { name: /abandon/ })).toBeTruthy();
+  });
+
+  it("日付が変わったら答え済みの記録は使わない", async () => {
+    localStorage.setItem(REVIEWS_TODAY_KEY, JSON.stringify(today));
+    localStorage.setItem(ANSWERED_KEY, JSON.stringify({ date: "2000-01-01", ids: ["w1"] }));
+    online = false;
+    renderReview();
+    await screen.findByText("REVIEW ・ 1 / 2");
+  });
+
+  it("別アカウントの /api/me なら送信待ちを捨てる（同じなら残す）", async () => {
+    store.set("wl_queue_owner", "u1");
+    store.set("wl_offline_queue", [{ id: "a", path: "/x", body: {}, kind: "other" }]);
+    const f = vi.mocked(fetch);
+    const base = f.getMockImplementation()!;
+    f.mockImplementation(async (path, init) => (path === "/api/x" || path === "/x" ? json({}, 503) : base(path, init)));
+    renderReview();
+    await screen.findByText("REVIEW ・ 1 / 2");
+    expect(store.get("wl_offline_queue")).toHaveLength(1);
+    cleanup();
+    store.set("wl_queue_owner", "other");
+    renderReview();
+    await waitFor(() => expect(store.get("wl_offline_queue")).toBeUndefined());
   });
 });
