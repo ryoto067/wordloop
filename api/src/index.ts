@@ -4,6 +4,7 @@ import type { AppEnv, Env } from "./env";
 import { meRoutes } from "./routes/me";
 import { roundRoutes } from "./routes/rounds";
 import { reviewRoutes } from "./routes/reviews";
+import { sentenceRoutes } from "./routes/sentences";
 import { wordRoutes } from "./routes/words";
 
 export const app = new Hono<AppEnv>();
@@ -14,6 +15,7 @@ app.route("/", meRoutes);
 app.route("/", wordRoutes);
 app.route("/", roundRoutes);
 app.route("/", reviewRoutes);
+app.route("/", sentenceRoutes);
 
 // 通知の送信は Task 9 で実装する
 async function scheduled(_event: ScheduledController, _env: Env, _ctx: ExecutionContext) {}
