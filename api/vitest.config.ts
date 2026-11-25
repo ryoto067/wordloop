@@ -9,7 +9,12 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: "./wrangler.toml" },
         remoteBindings: false, // AI バインディングを使わずログイン不要でテストする
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        miniflare: { bindings: {
+            TEST_MIGRATIONS: migrations,
+            GOOGLE_CLIENT_ID: "test-client-id",
+            GOOGLE_CLIENT_SECRET: "test-client-secret",
+            SESSION_SECRET: "test-session-secret",
+          } },
       }),
     ],
     test: { setupFiles: ["./test/apply-migrations.ts"] },
