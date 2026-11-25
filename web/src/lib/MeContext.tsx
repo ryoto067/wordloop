@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { OfflineError, api } from "./api";
 import { ANSWERED_KEY } from "./answered";
+import { clearDraft } from "./roundDraft";
 import { claimQueue, clearQueue, clearQueueOwner, startAutoFlush } from "./offlineQueue";
 
 export type Me = {
@@ -46,6 +47,7 @@ export function clearMeCache() {
 // ログアウト用。送信待ちキューも含めて、この端末のユーザーデータをすべて消す
 export async function clearUserData(): Promise<void> {
   clearMeCache();
+  clearDraft();
   await Promise.all([clearQueue().catch(() => {}), clearQueueOwner().catch(() => {})]);
 }
 

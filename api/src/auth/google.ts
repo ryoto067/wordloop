@@ -67,19 +67,24 @@ authRoutes.get("/api/auth/google/callback", async (c) => {
     return fail("failed");
   }
 
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: c.env.GOOGLE_CLIENT_ID,
-      client_secret: c.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${c.env.APP_ORIGIN}/api/auth/google/callback`,
-      grant_type: "authorization_code",
-    }),
-  });
-  if (!tokenRes.ok) return fail("failed");
-  const { id_token } = (await tokenRes.json()) as { id_token?: string };
+  let id_token: string | undefined;
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: c.env.GOOGLE_CLIENT_ID,
+        client_secret: c.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: `${c.env.APP_ORIGIN}/api/auth/google/callback`,
+        grant_type: "authorization_code",
+      }),
+    });
+    if (!tokenRes.ok) return fail("failed");
+    ({ id_token } = (await tokenRes.json()) as { id_token?: string });
+  } catch {
+    return fail("failed");
+  }
   if (!id_token) return fail("failed");
 
   let payload;

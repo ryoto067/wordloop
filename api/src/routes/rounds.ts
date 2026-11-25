@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { requireUser } from "../auth/middleware";
-import { localDate } from "../domain/dates";
+import { selectIn } from "../db/inChunks";
+import { addDays, localDate } from "../domain/dates";
 import { applyRoundTestForgot, startCard } from "../domain/srs";
 import type { AppEnv } from "../env";
 import { normEnglish, normJapanese } from "./words";
@@ -33,6 +34,14 @@ function validTimes(startedAt: unknown, durationSec: unknown): boolean {
   );
 }
 
+// 周回の「やった日」= 終了時刻（startedAt + durationSec）の現地日付。オフライン同期で翌日に届いても当日扱い。
+// 今日より未来、または 7 日より前なら今日にする
+function roundDate(startedAt: unknown, durationSec: unknown, tz: string): string {
+  const today = localDate(new Date(), tz);
+  const d = localDate(new Date(Date.parse(startedAt as string) + (durationSec as number) * 1000), tz);
+  return d > today || d < addDays(today, -7) ? today : d;
+}
+
 roundRoutes.post("/api/rounds/first", requireUser, async (c) => {
   const userId = c.get("userId");
   const user = await getUser(c.env.DB, userId);
@@ -50,7 +59,7 @@ roundRoutes.post("/api/rounds/first", requireUser, async (c) => {
   }
   const link = new Set(Array.isArray(body.linkExisting) ? (body.linkExisting as unknown[]).map(normEnglish) : []);
 
-  const today = localDate(new Date(), user.timezone);
+  const today = roundDate(body.startedAt, body.durationSec, user.timezone);
   const [, m, d] = today.split("-").map(Number);
   const base = `${m}/${d} セット`;
   const same = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM word_sets WHERE user_id = ? AND (name = ? OR name LIKE ?)")
@@ -67,10 +76,15 @@ roundRoutes.post("/api/rounds/first", requireUser, async (c) => {
   let created = 0;
   let linked = 0;
   let skipped = 0;
+  const found = await selectIn<{ id: string; english: string }>(
+    c.env.DB,
+    [...inputs.keys()],
+    (marks) => `SELECT id, english FROM words WHERE user_id = ? AND english IN (${marks})`,
+    [userId],
+  );
+  const existing = new Map(found.map((r) => [r.english, r.id]));
   for (const [english, japanese] of inputs) {
-    const ex = await c.env.DB.prepare("SELECT id FROM words WHERE user_id = ? AND english = ?")
-      .bind(userId, english)
-      .first<{ id: string }>();
+    const ex = existing.has(english) ? { id: existing.get(english)! } : null;
     let wordId: string;
     if (ex) {
       if (!link.has(english)) {
@@ -147,7 +161,7 @@ roundRoutes.post("/api/rounds/next", requireUser, async (c) => {
     c.env.DB.prepare(
       "INSERT INTO study_rounds (id, user_id, set_id, round_no, started_at, duration_sec) VALUES (?, ?, ?, ?, ?, ?)",
     ).bind(roundId, userId, body.setId, body.roundNo, body.startedAt, body.durationSec),
-    markDidRound(c.env.DB, userId, localDate(new Date(), user.timezone)),
+    markDidRound(c.env.DB, userId, roundDate(body.startedAt, body.durationSec, user.timezone)),
   ]);
   const { results } = await c.env.DB.prepare(
     "SELECT w.id, w.english, w.japanese FROM set_words sw JOIN words w ON w.id = sw.word_id WHERE sw.set_id = ? ORDER BY w.english",
@@ -180,21 +194,30 @@ roundRoutes.post("/api/rounds/:roundId/results", requireUser, async (c) => {
   let remembered = 0;
   let forgot = 0;
   const stmts: D1PreparedStatement[] = [];
+  const wordIds = [...new Set(items.map((it) => it.wordId))];
+  // 件数に比例しないクエリ数: 語の取得と既存結果の取得をそれぞれ 1 バッチ、書き込みで 1 バッチ
+  const ws = await selectIn<{ id: string; stage: number; anchor_on: string; next_review_on: string; status: string }>(
+    c.env.DB,
+    wordIds,
+    (marks) =>
+      `SELECT w.id, w.stage, w.anchor_on, w.next_review_on, w.status FROM set_words sw JOIN words w ON w.id = sw.word_id
+       WHERE sw.set_id = ? AND w.user_id = ? AND w.id IN (${marks})`,
+    [round.set_id, userId],
+  );
+  const words = new Map(ws.map((w) => [w.id, w]));
+  const doneRows = await selectIn<{ word_id: string }>(
+    c.env.DB,
+    wordIds,
+    (marks) => `SELECT word_id FROM round_tests WHERE round_id = ? AND word_id IN (${marks})`,
+    [round.id],
+  );
+  const done = new Set(doneRows.map((r) => r.word_id));
   const seen = new Set<string>();
   for (const it of items) {
     if (seen.has(it.wordId)) continue;
     seen.add(it.wordId);
-    const w = await c.env.DB.prepare(
-      `SELECT w.stage, w.anchor_on, w.next_review_on, w.status FROM set_words sw JOIN words w ON w.id = sw.word_id
-       WHERE sw.set_id = ? AND sw.word_id = ? AND w.user_id = ?`,
-    )
-      .bind(round.set_id, it.wordId, userId)
-      .first<{ stage: number; anchor_on: string; next_review_on: string; status: string }>();
-    if (!w) return c.json({ error: "not found" }, 404);
-    const done = await c.env.DB.prepare("SELECT 1 FROM round_tests WHERE round_id = ? AND word_id = ?")
-      .bind(round.id, it.wordId)
-      .first();
-    if (done) continue; // 再送は二重に進めない
+    const w = words.get(it.wordId);
+    if (!w || done.has(it.wordId)) continue; // 不明・削除済みの語は無視、再送は二重に進めない
     stmts.push(
       c.env.DB.prepare("INSERT INTO round_tests (round_id, word_id, result) VALUES (?, ?, ?)").bind(round.id, it.wordId, it.result),
     );

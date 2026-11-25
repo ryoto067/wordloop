@@ -44,6 +44,13 @@ async function consumeUsage(db: D1Database, userId: string, date: string): Promi
   return r.meta.changes > 0;
 }
 
+async function refundUsage(db: D1Database, userId: string, date: string): Promise<void> {
+  await db
+    .prepare("UPDATE ai_usage SET count = MAX(count - 1, 0) WHERE user_id = ? AND date = ?")
+    .bind(userId, date)
+    .run();
+}
+
 async function waitingWords(db: D1Database, userId: string, limit: number): Promise<WordRow[]> {
   const { results } = await db
     .prepare(
@@ -97,7 +104,10 @@ async function generateRoute(c: Context<AppEnv>, pick: (userId: string) => Promi
     return c.json({ ...out, wordIds: words.map((w) => w.id) });
   } catch (e) {
     if (e instanceof AiFormatError) return c.json({ error: "ai_format" }, 502);
-    throw e;
+    // クォータ・ネットワークなど: 回数は返す
+    console.error("ai generate failed", e);
+    await refundUsage(c.env.DB, userId, today);
+    return c.json({ error: "ai_unavailable" }, 503);
   }
 }
 
@@ -149,8 +159,11 @@ sentenceRoutes.post("/api/sentences", requireUser, async (c) => {
         c.env.DB.prepare("UPDATE words SET status = 'in_sentence', next_review_on = NULL WHERE id = ? AND status = 'waiting_sentence'").bind(w.id),
       ),
     ]);
-  } catch {
-    return c.json({ error: "already_used" }, 409); // 同じ語が別の文章に保存済み（バッチは原子的）
+  } catch (e) {
+    // 同じ語が別の文章に保存済み（バッチは原子的）なら UNIQUE 制約違反。それ以外は保存失敗
+    if (String(e).includes("UNIQUE")) return c.json({ error: "already_used" }, 409);
+    console.error("save sentence failed", e);
+    return c.json({ error: "save_failed" }, 500);
   }
   return c.json({ id, nextReviewOn: card.nextReviewOn });
 });

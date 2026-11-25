@@ -273,3 +273,13 @@ describe("GET /api/me の today", () => {
     expect(body.today).toEqual({ dueWords: 2, dueSentences: 1, waitingWords: 1, doneToday: false });
   });
 });
+
+describe("callback のネットワーク障害", () => {
+  it("トークン交換の fetch が例外でも /login?error=failed へ 302", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    const { stateCookie, state } = await startLogin();
+    const res = await req(`/api/auth/google/callback?code=abc&state=${state}`, { headers: { cookie: `wl_state=${stateCookie}` } });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
+  });
+});

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { requireUser } from "../auth/middleware";
+import { selectIn } from "../db/inChunks";
 import type { AppEnv } from "../env";
 
 export const wordRoutes = new Hono<AppEnv>();
@@ -11,19 +12,26 @@ wordRoutes.post("/api/words/check", requireUser, async (c) => {
   const userId = c.get("userId");
   const body = await c.req.json<{ english?: unknown }>().catch(() => ({}) as { english?: unknown });
   const list = Array.isArray(body.english) ? [...new Set(body.english.map(normEnglish).filter(Boolean))] : [];
-  const existing: { english: string; wordId: string; setNames: string[] }[] = [];
-  for (const english of list) {
-    const w = await c.env.DB.prepare("SELECT id FROM words WHERE user_id = ? AND english = ?")
-      .bind(userId, english)
-      .first<{ id: string }>();
-    if (!w) continue;
-    const { results } = await c.env.DB.prepare(
-      "SELECT s.name FROM set_words sw JOIN word_sets s ON s.id = sw.set_id WHERE sw.word_id = ? ORDER BY s.created_at, s.id",
-    )
-      .bind(w.id)
-      .all<{ name: string }>();
-    existing.push({ english, wordId: w.id, setNames: results.map((r) => r.name) });
-  }
+  const found = await selectIn<{ id: string; english: string }>(
+    c.env.DB,
+    list,
+    (marks) => `SELECT id, english FROM words WHERE user_id = ? AND english IN (${marks})`,
+    [userId],
+  );
+  const sets = await selectIn<{ word_id: string; name: string }>(
+    c.env.DB,
+    found.map((w) => w.id),
+    (marks) =>
+      `SELECT sw.word_id, s.name FROM set_words sw JOIN word_sets s ON s.id = sw.set_id
+       WHERE sw.word_id IN (${marks}) ORDER BY s.created_at, s.id`,
+  );
+  const byEnglish = new Map(found.map((w) => [w.english, w.id]));
+  const existing = list
+    .filter((english) => byEnglish.has(english))
+    .map((english) => {
+      const wordId = byEnglish.get(english)!;
+      return { english, wordId, setNames: sets.filter((r) => r.word_id === wordId).map((r) => r.name) };
+    });
   return c.json({ existing });
 });
 

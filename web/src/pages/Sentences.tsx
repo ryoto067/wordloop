@@ -36,6 +36,7 @@ function storeDraft(key: string, d: Draft | null) {
 function generateError(err: unknown): string {
   if (err instanceof OfflineError) return "AI で文章を作るにはインターネット接続が必要です";
   if (err instanceof ApiError && err.status === 429) return "今日の AI 作成回数（10回）を使い切りました。明日また作れます";
+  if (err instanceof ApiError && err.status === 503) return "AI が混み合っています。しばらくしてからお試しください（回数は消費されていません）";
   if (err instanceof ApiError && err.status === 502) return "AI の文章がうまく作れませんでした。もう一度お試しください（回数は1回消費されます）";
   return "文章を作れませんでした。もう一度お試しください";
 }

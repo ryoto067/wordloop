@@ -118,7 +118,7 @@ describe("POST /api/reviews", () => {
   it("reviewedAt の古い順に適用する（結果が順序に依存する 2 件）", async () => {
     const t = today();
     const y = addDays(t, -1);
-    const w = await addWord(aliceId, "ordered", { stage: 2, anchor: addDays(t, -10), next: t });
+    const w = await addWord(aliceId, "ordered", { stage: 2, anchor: addDays(t, -10), next: y });
     const early = item(w, "remembered", { reviewedAt: new Date(`${y}T12:00:00+09:00`).toISOString() });
     const late = item(w, "forgot", { reviewedAt: new Date(`${t}T12:00:00+09:00`).toISOString() });
     // 新しい順で送る。正: remembered(昨日) stage 3 → forgot(今日) stage 2・anchor 今日・next 今日+7

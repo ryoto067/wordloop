@@ -132,6 +132,8 @@ reviewRoutes.post("/api/reviews", requireUser, async (c) => {
   const cards = new Map<string, Live>();
   (pre[2].results as Live[]).forEach((r) => cards.set(`word:${r.id}`, r));
   (pre[3].results as Live[]).forEach((r) => cards.set(`sentence:${r.id}`, r));
+  // 取得時点の期日。バッチ内の自分の更新ではなく「別端末で先に進んだ」ことを検出するために使う
+  const dueAtLoad = new Map([...cards].map(([k, r]) => [k, r.next_review_on]));
 
   items.sort((a, b) => a.at - b.at); // 安定ソート: 同時刻は送信順
   const stmts: D1PreparedStatement[] = [];
@@ -143,9 +145,11 @@ reviewRoutes.post("/api/reviews", requireUser, async (c) => {
     if (seen.has(it.clientId) || !card || card.user_id !== userId || card.status !== "reviewing" || card.next_review_on === null) {
       continue;
     }
-    seen.add(it.clientId);
     const t = T[it.kind];
     const date = localDate(new Date(it.at), user.timezone);
+    // 別端末で先に進んだ（期日が復習日より後）カードは二重に進めない
+    if ((dueAtLoad.get(`${it.kind}:${it.id}`) ?? "") > date) continue;
+    seen.add(it.clientId);
     const intervals = user[it.kind];
     const { graduated, ...after } = applyResult(
       { stage: card.stage, anchorOn: card.anchor_on, nextReviewOn: card.next_review_on },

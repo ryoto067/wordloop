@@ -98,12 +98,27 @@ describe("Sentences", () => {
 
   it.each([
     [429, { error: "daily_limit" }, "今日の AI 作成回数（10回）を使い切りました。明日また作れます"],
+    [503, { error: "ai_unavailable" }, "AI が混み合っています。しばらくしてからお試しください（回数は消費されていません）"],
     [502, { error: "ai_format" }, "AI の文章がうまく作れませんでした。もう一度お試しください（回数は1回消費されます）"],
   ])("生成が %s のときのメッセージ", async (status, body, text) => {
     handlers["/api/sentences/generate"] = () => json(body, status);
     renderPage(<Sentences />);
     fireEvent.click(await screen.findByRole("button", { name: /AI で文章を作る/ }));
     expect((await screen.findByRole("alert")).textContent).toBe(text);
+  });
+
+  it("保存が 500 のときは下書きを残してやり直しを促す。409 のときは破棄する", async () => {
+    sessionStorage.setItem(`${DRAFT_KEY}:u1`, JSON.stringify(generated));
+    handlers["/api/sentences"] = () => json({ error: "save_failed" }, 500);
+    renderPage(<Sentences />);
+    fireEvent.click(await screen.findByRole("button", { name: "保存" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("保存できませんでした。もう一度お試しください");
+    expect(sessionStorage.getItem(`${DRAFT_KEY}:u1`)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "保存" })).toBeTruthy();
+
+    handlers["/api/sentences"] = () => json({ error: "already_used" }, 409);
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(sessionStorage.getItem(`${DRAFT_KEY}:u1`)).toBeNull());
   });
 
   it("オフラインで生成すると接続が必要と出る", async () => {

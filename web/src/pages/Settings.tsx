@@ -5,6 +5,7 @@ import { NotifySection } from "../components/NotifySection";
 import { SlantButton } from "../components/SlantButton";
 import { api } from "../lib/api";
 import { clearUserData, useMe } from "../lib/MeContext";
+import { disablePush } from "../lib/push";
 
 const FONTS = [
   { label: "小", value: 0.9 },
@@ -59,6 +60,12 @@ export function Settings() {
 
   const logout = async () => {
     setLoggingOut(true);
+    // 通知の購読を解除してから（セッションが生きているうちに）。失敗してもログアウトは続ける
+    try {
+      await disablePush();
+    } catch {
+      // 無視
+    }
     await clearUserData();
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     location.assign("/login");
