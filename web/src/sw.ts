@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
+import { safeNotificationUrl } from "./lib/safeUrl";
 import { NavigationRoute, registerRoute } from "workbox-routing";
 
 declare const self: ServiceWorkerGlobalScope;
@@ -34,7 +35,7 @@ self.addEventListener("push", (e) => {
 
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const url = new URL((e.notification.data as { url?: string } | null)?.url ?? "/", self.location.origin).href;
+  const url = safeNotificationUrl((e.notification.data as { url?: unknown } | null)?.url, self.location.origin);
   e.waitUntil(
     (async () => {
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

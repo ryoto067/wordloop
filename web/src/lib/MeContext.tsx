@@ -44,10 +44,9 @@ export function clearMeCache() {
 }
 
 // ログアウト用。送信待ちキューも含めて、この端末のユーザーデータをすべて消す
-export function clearUserData() {
+export async function clearUserData(): Promise<void> {
   clearMeCache();
-  clearQueue().catch(() => {});
-  clearQueueOwner().catch(() => {});
+  await Promise.all([clearQueue().catch(() => {}), clearQueueOwner().catch(() => {})]);
 }
 
 function writeCache(me: Me) {

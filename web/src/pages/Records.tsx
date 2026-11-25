@@ -260,6 +260,9 @@ function CalendarTab() {
   const achieved = new Set(days.filter((d) => d.achieved).map((d) => d.date));
   const cells: (number | null)[] = [...Array(lead).fill(null), ...Array.from({ length: count }, (_, i) => i + 1)];
 
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+
   return (
     <section aria-label="連続日数カレンダー" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div className="cal-head">
@@ -276,20 +279,24 @@ function CalendarTab() {
           {error}
         </p>
       )}
-      <div className="cal-grid" role="grid" aria-label={monthLabel(month)}>
-        {["日", "月", "火", "水", "木", "金", "土"].map((w) => (
-          <div key={w} className="cal-dow muted" role="columnheader">
-            {w}
-          </div>
-        ))}
-        {cells.map((d, i) => {
-          if (d === null) return <div key={`e${i}`} role="gridcell" />;
+      <div className="cal-grid" role="table" aria-label={monthLabel(month)}>
+        <div className="cal-row" role="row">
+          {["日", "月", "火", "水", "木", "金", "土"].map((w) => (
+            <div key={w} className="cal-dow muted" role="columnheader">
+              {w}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} className="cal-row" role="row">
+            {week.map((d, i) => {
+          if (d === null) return <div key={`e${i}`} role="cell" />;
           const date = `${month}-${String(d).padStart(2, "0")}`;
           const ok = achieved.has(date);
           return (
             <div
               key={date}
-              role="gridcell"
+              role="cell"
               className={`cal-day ${ok ? "ok" : ""} ${date === todayStr ? "today" : ""}`}
               aria-label={`${m}月${d}日${ok ? " 達成" : ""}${date === todayStr ? " 今日" : ""}`}
             >
@@ -297,7 +304,9 @@ function CalendarTab() {
               {ok && <span aria-hidden="true">✓</span>}
             </div>
           );
-        })}
+            })}
+          </div>
+        ))}
       </div>
       <p className="muted" style={{ margin: 0 }}>
         ✓ の日は、暗記の周回・復習の全消化・20 件以上の復習のどれかを達成した日です

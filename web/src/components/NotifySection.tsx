@@ -104,7 +104,7 @@ export function NotifySection() {
       <ul className="time-list">
         {times.map((t) => (
           <li key={`${t.id}-${t.hhmm}`}>
-            <input type="time" defaultValue={t.hhmm} aria-label="通知時刻" onChange={(e) => changeTime(t, e.target.value)} />
+            <input type="time" defaultValue={t.hhmm} aria-label="通知時刻" onBlur={(e) => changeTime(t, e.target.value)} />
             <button
               type="button"
               className="link-button"

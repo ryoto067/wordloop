@@ -145,8 +145,8 @@ describe("Review", () => {
     expect(localStorage.getItem(REVIEWS_TODAY_KEY)).toBeNull();
     expect(localStorage.getItem(ANSWERED_KEY)).toBeNull();
     expect(store.has("wl_offline_queue")).toBe(true);
-    clearUserData();
-    await waitFor(() => expect(store.has("wl_offline_queue")).toBe(false));
+    await clearUserData();
+    expect(store.has("wl_offline_queue")).toBe(false);
   });
 
   it("送信済みのカードは、オフラインで開き直しても出ない", async () => {
