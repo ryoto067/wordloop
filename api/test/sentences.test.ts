@@ -196,3 +196,45 @@ describe('PATCH / GET /api/sentences', () => {
     expect((await call(null, 'GET', '/api/sentences')).status).toBe(401)
   })
 })
+
+describe('二重保存・件数上限', () => {
+  it('同じ語の 2 回目の保存は拒否され、文章は 1 つだけ', async () => {
+    const fay = await login('fay-sent@example.com')
+    const fayId = await userId('fay-sent@example.com')
+    const a = await addWord(fayId, 'dup-a')
+    const payload = { englishMarked: '[[dup-a|dup-a]]', japanese: '訳', wordIds: [a] }
+    expect((await call(fay, 'POST', '/api/sentences', payload)).status).toBe(200)
+    expect([400, 409]).toContain((await call(fay, 'POST', '/api/sentences', payload)).status)
+    const n = await env.DB.prepare('SELECT COUNT(*) n FROM sentences WHERE user_id = ?').bind(fayId).first<any>()
+    expect(n.n).toBe(1)
+  })
+
+  it('競合（検証後に別の文章へ使われた語）は 409 で何も書かない', async () => {
+    const gus = await login('gus-sent@example.com')
+    const gusId = await userId('gus-sent@example.com')
+    const a = await addWord(gusId, 'race-a')
+    const other = crypto.randomUUID()
+    await env.DB.prepare(
+      "INSERT INTO sentences (id, user_id, english_marked, japanese_text, anchor_on, status) VALUES (?, ?, 'x', 'y', ?, 'reviewing')",
+    ).bind(other, gusId, today()).run()
+    await env.DB.prepare('INSERT INTO sentence_words (sentence_id, word_id) VALUES (?, ?)').bind(other, a).run()
+    const res = await call(gus, 'POST', '/api/sentences', { englishMarked: '[[race-a|race-a]]', japanese: '訳', wordIds: [a] })
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'already_used' })
+    const n = await env.DB.prepare('SELECT COUNT(*) n FROM sentences WHERE user_id = ?').bind(gusId).first<any>()
+    expect(n.n).toBe(1)
+  })
+
+  it('wordIds が 11 件は 400（保存・再生成）、再生成は 4 件でも 400 で回数を消費しない', async () => {
+    const hal = await login('hal-sent@example.com')
+    const halId = await userId('hal-sent@example.com')
+    setTextGenOverride(fakeGen())
+    const ids: string[] = []
+    for (let i = 0; i < 11; i++) ids.push(await addWord(halId, `hw${i}`))
+    expect((await call(hal, 'POST', '/api/sentences', { englishMarked: 'x', japanese: 'y', wordIds: ids })).status).toBe(400)
+    expect((await call(hal, 'POST', '/api/sentences/regenerate', { wordIds: ids })).status).toBe(400)
+    expect((await call(hal, 'POST', '/api/sentences/regenerate', { wordIds: ids.slice(0, 4) })).status).toBe(400)
+    const used = await env.DB.prepare('SELECT count FROM ai_usage WHERE user_id = ?').bind(halId).first<any>()
+    expect(used).toBeNull()
+  })
+})

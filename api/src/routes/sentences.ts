@@ -55,9 +55,15 @@ async function waitingWords(db: D1Database, userId: string, limit: number): Prom
 }
 
 // wordIds がすべて本人の waiting_sentence なら語を返す。そうでなければ null
-async function ownedWaiting(db: D1Database, userId: string, wordIds: unknown): Promise<WordRow[] | null> {
-  if (!Array.isArray(wordIds) || wordIds.length === 0 || !wordIds.every((x) => typeof x === "string")) return null;
+async function ownedWaiting(
+  db: D1Database,
+  userId: string,
+  wordIds: unknown,
+  min: number,
+): Promise<WordRow[] | null> {
+  if (!Array.isArray(wordIds) || !wordIds.every((x) => typeof x === "string")) return null;
   const ids = [...new Set(wordIds as string[])];
+  if (ids.length < min || ids.length > MAX_WORDS) return null;
   const { results } = await db
     .prepare(
       `SELECT id, english, japanese FROM words WHERE user_id = ? AND status = 'waiting_sentence'
@@ -104,7 +110,7 @@ sentenceRoutes.post("/api/sentences/generate", requireUser, (c) =>
 
 sentenceRoutes.post("/api/sentences/regenerate", requireUser, async (c) => {
   const body = await c.req.json<{ wordIds?: unknown }>().catch(() => ({}) as { wordIds?: unknown });
-  return generateRoute(c, (userId) => ownedWaiting(c.env.DB, userId, body.wordIds));
+  return generateRoute(c, (userId) => ownedWaiting(c.env.DB, userId, body.wordIds, MIN_WORDS));
 });
 
 function validText(b: Record<string, unknown>): b is { englishMarked: string; japanese: string } {
@@ -122,7 +128,7 @@ sentenceRoutes.post("/api/sentences", requireUser, async (c) => {
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
   if (!validText(body)) return c.json({ error: "englishMarked and japanese required" }, 400);
-  const words = await ownedWaiting(c.env.DB, userId, (body as Record<string, unknown>).wordIds);
+  const words = await ownedWaiting(c.env.DB, userId, (body as Record<string, unknown>).wordIds, 1);
   if (!words) return c.json({ error: "invalid wordIds" }, 400);
 
   const missing = missingLemmas(body.englishMarked, words.map((w) => w.english));
@@ -131,17 +137,21 @@ sentenceRoutes.post("/api/sentences", requireUser, async (c) => {
   const today = localDate(new Date(), user.timezone);
   const card = startCard(today, user.intervals);
   const id = crypto.randomUUID();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      "INSERT INTO sentences (id, user_id, english_marked, japanese_text, stage, anchor_on, next_review_on, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'reviewing')",
-    ).bind(id, userId, body.englishMarked, body.japanese, card.stage, card.anchorOn, card.nextReviewOn),
-    ...words.map((w) =>
-      c.env.DB.prepare("INSERT INTO sentence_words (sentence_id, word_id) VALUES (?, ?)").bind(id, w.id),
-    ),
-    ...words.map((w) =>
-      c.env.DB.prepare("UPDATE words SET status = 'in_sentence', next_review_on = NULL WHERE id = ?").bind(w.id),
-    ),
-  ]);
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        "INSERT INTO sentences (id, user_id, english_marked, japanese_text, stage, anchor_on, next_review_on, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'reviewing')",
+      ).bind(id, userId, body.englishMarked, body.japanese, card.stage, card.anchorOn, card.nextReviewOn),
+      ...words.map((w) =>
+        c.env.DB.prepare("INSERT INTO sentence_words (sentence_id, word_id) VALUES (?, ?)").bind(id, w.id),
+      ),
+      ...words.map((w) =>
+        c.env.DB.prepare("UPDATE words SET status = 'in_sentence', next_review_on = NULL WHERE id = ? AND status = 'waiting_sentence'").bind(w.id),
+      ),
+    ]);
+  } catch {
+    return c.json({ error: "already_used" }, 409); // 同じ語が別の文章に保存済み（バッチは原子的）
+  }
   return c.json({ id, nextReviewOn: card.nextReviewOn });
 });
 

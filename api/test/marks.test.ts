@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { extractClaudeText, extractWorkersAiText } from '../src/ai/provider'
+import { describe, expect, it, vi } from 'vitest'
+import { extractClaudeText, extractWorkersAiText, getTextGen } from '../src/ai/provider'
 import type { TextGen } from '../src/ai/provider'
 import { AiFormatError, extractJson, generateSentence } from '../src/ai/sentence'
 import { missingLemmas, parseMarked } from '../src/domain/marks'
@@ -83,5 +83,23 @@ describe('アダプタ', () => {
     expect(
       extractClaudeText({ content: [{ type: 'text', text: 'a' }, { type: 'tool_use' }, { type: 'text', text: 'b' }] }),
     ).toBe('ab')
+  })
+})
+
+describe('getTextGen（Workers AI）', () => {
+  it('モデル ID と messages / max_tokens で呼ぶ', async () => {
+    const run = vi.fn(async () => ({ choices: [{ message: { content: 'ok' } }] }))
+    const gen = getTextGen({ AI: { run } } as any)
+    expect(await gen.complete('SYS', 'USER')).toBe('ok')
+    expect(run).toHaveBeenCalledWith('@cf/openai/gpt-oss-120b', {
+      messages: [
+        { role: 'system', content: 'SYS' },
+        { role: 'user', content: 'USER' },
+      ],
+      max_tokens: 2048,
+    })
+  })
+  it('Claude は API キー未設定なら明確なエラー', async () => {
+    await expect(getTextGen({ AI_PROVIDER: 'claude' } as any).complete('s', 'u')).rejects.toThrow('ANTHROPIC_API_KEY')
   })
 })

@@ -41,9 +41,11 @@ function workersAi(env: Env): TextGen {
   return {
     async complete(system, user) {
       const res = await (env.AI as any).run(WORKERS_AI_MODEL, {
-        instructions: system,
-        input: user,
-        reasoning: { effort: 'low' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        max_tokens: 2048,
       })
       return extractWorkersAiText(res)
     },
@@ -53,10 +55,11 @@ function workersAi(env: Env): TextGen {
 function claude(env: Env): TextGen {
   return {
     async complete(system, user) {
+      if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set (AI_PROVIDER=claude)')
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'x-api-key': env.ANTHROPIC_API_KEY ?? '',
+          'x-api-key': env.ANTHROPIC_API_KEY,
           'anthropic-version': '2023-06-01',
           'content-type': 'application/json',
         },
@@ -67,7 +70,7 @@ function claude(env: Env): TextGen {
           messages: [{ role: 'user', content: user }],
         }),
       })
-      if (!res.ok) throw new Error(`Claude API error ${res.status}`)
+      if (!res.ok) throw new Error(`Claude API error ${res.status}: ${await res.text()}`)
       return extractClaudeText(await res.json())
     },
   }
