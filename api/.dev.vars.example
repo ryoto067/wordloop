@@ -1,0 +1,12 @@
+# コピーして .dev.vars にし、値を入れる（.dev.vars はコミットしない）
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SESSION_SECRET=
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:you@example.com
+# AI_PROVIDER=workers-ai
+# ANTHROPIC_API_KEY=
+# CLAUDE_MODEL=claude-sonnet-5-5
+# ローカル開発のみ: ログインを省略する
+# DEV_LOGIN=1

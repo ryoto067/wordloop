@@ -1,0 +1,20 @@
+name = "wordloop-api"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_ORIGIN = "http://localhost:5173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "wordloop"
+# Task 14 で `wrangler d1 create wordloop` の実 ID に差し替える
+database_id = "local-placeholder"
+migrations_dir = "migrations"
+
+[ai]
+binding = "AI"
+
+[triggers]
+crons = ["* * * * *"]
