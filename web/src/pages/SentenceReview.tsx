@@ -26,6 +26,7 @@ function Cloze({ card, onResult }: { card: ReviewSentence; onResult(r: Result): 
   const segments = toSegments(card.englishMarked);
   const blanks = segments.filter((s) => "blank" in s).length;
   const [open, setOpen] = useState<Set<number>>(new Set());
+  const blankNo = (i: number) => segments.slice(0, i + 1).filter((x) => "blank" in x).length;
   const reveal = (i: number) => setOpen((o) => new Set(o).add(i));
   return (
     <>
@@ -39,7 +40,7 @@ function Cloze({ card, onResult }: { card: ReviewSentence; onResult(r: Result): 
                   {s.blank}
                 </strong>
               ) : (
-                <button key={i} type="button" className="blank" aria-label="空欄。押すと答えが見えます" onClick={() => reveal(i)}>
+                <button key={i} type="button" className="blank" aria-label={`空欄 ${blankNo(i)}/${blanks}。押すと答えが見えます`} onClick={() => reveal(i)}>
                   ?
                 </button>
               )

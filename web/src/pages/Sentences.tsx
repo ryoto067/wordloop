@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkedText } from "../components/MarkedText";
 import { SlantButton, SlantLink } from "../components/SlantButton";
 import { ApiError, OfflineError, api } from "../lib/api";
@@ -14,9 +14,9 @@ type SaveResponse = { id?: string; warning?: { missing: string[] } };
 export const DRAFT_KEY = "wl_sentence_draft";
 
 // 生成した下書きは sessionStorage に残す（再読み込みで AI の回数を無駄にしないため）
-function loadDraft(): Draft | null {
+function loadDraft(key: string): Draft | null {
   try {
-    const v = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null") as Partial<Draft> | null;
+    const v = JSON.parse(sessionStorage.getItem(key) ?? "null") as Partial<Draft> | null;
     if (v && typeof v.englishMarked === "string" && typeof v.japanese === "string" && Array.isArray(v.wordIds)) return v as Draft;
   } catch {
     // 壊れていたら下書きなしにする
@@ -24,10 +24,10 @@ function loadDraft(): Draft | null {
   return null;
 }
 
-function storeDraft(d: Draft | null) {
+function storeDraft(key: string, d: Draft | null) {
   try {
-    if (d) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-    else sessionStorage.removeItem(DRAFT_KEY);
+    if (d) sessionStorage.setItem(key, JSON.stringify(d));
+    else sessionStorage.removeItem(key);
   } catch {
     // 保存できなくても動作には影響しない
   }
@@ -44,15 +44,20 @@ export function Sentences() {
   const { me, refresh } = useMe();
   const [waiting, setWaiting] = useState<Waiting | null>(null);
   const [sentences, setSentences] = useState<Sentence[]>([]);
-  const [draft, setDraftState] = useState<Draft | null>(loadDraft);
+  const [draft, setDraftState] = useState<Draft | null>(null);
+  const draftKey = me ? `${DRAFT_KEY}:${me.id}` : null; // ユーザーごとに分ける
+  useEffect(() => {
+    if (draftKey) setDraftState(loadDraft(draftKey));
+  }, [draftKey]);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false); // 連打で AI を2回呼ばないよう、state ではなく ref で判定する
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const setDraft = (d: Draft | null) => {
     setDraftState(d);
-    storeDraft(d);
+    if (draftKey) storeDraft(draftKey, d);
   };
 
   const load = useCallback(async () => {
@@ -70,12 +75,14 @@ export function Sentences() {
   }, [load]);
 
   const run = async (fn: () => Promise<void>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
       await fn();
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };

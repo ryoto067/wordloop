@@ -76,12 +76,21 @@ describe("Sentences", () => {
     const strong = await screen.findByText("abandoned");
     expect(strong.tagName).toBe("STRONG");
     expect(screen.getByText("彼女はそれを諦めた。")).toBeTruthy();
-    expect(JSON.parse(sessionStorage.getItem(DRAFT_KEY)!).wordIds).toHaveLength(5);
+    expect(JSON.parse(sessionStorage.getItem(`${DRAFT_KEY}:u1`)!).wordIds).toHaveLength(5);
     expect(screen.getByRole("link", { name: /文章の復習（2）/ })).toBeTruthy();
   });
 
+  it("連打しても生成APIは1回だけ呼ばれる", async () => {
+    renderPage(<Sentences />);
+    const btn = await screen.findByRole("button", { name: /AI で文章を作る/ });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await screen.findByText("abandoned");
+    expect(calls.filter((c) => c.path === "/api/sentences/generate")).toHaveLength(1);
+  });
+
   it("再読み込み後も下書きが残る", async () => {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(generated));
+    sessionStorage.setItem(`${DRAFT_KEY}:u1`, JSON.stringify(generated));
     renderPage(<Sentences />);
     expect(await screen.findByText("abandoned")).toBeTruthy();
     expect(calls.some((c) => c.path === "/api/sentences/generate")).toBe(false);
@@ -106,7 +115,7 @@ describe("Sentences", () => {
   });
 
   it("手直しで説明文とプレビューが出る", async () => {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(generated));
+    sessionStorage.setItem(`${DRAFT_KEY}:u1`, JSON.stringify(generated));
     renderPage(<Sentences />);
     fireEvent.click(await screen.findByRole("button", { name: "手直し" }));
     expect(screen.getByText("[[ ]] を消すと穴埋めに出ません")).toBeTruthy();
@@ -115,7 +124,7 @@ describe("Sentences", () => {
   });
 
   it("保存の警告は確認ダイアログで、OKなら force=1 で再送する", async () => {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(generated));
+    sessionStorage.setItem(`${DRAFT_KEY}:u1`, JSON.stringify(generated));
     let first = true;
     handlers["/api/sentences"] = () => (first ? ((first = false), json({ warning: { missing: ["wb", "wc"] } })) : json({ id: "s1" }));
     handlers["/api/sentences?force=1"] = () => json({ id: "s1", nextReviewOn: "2026-11-28" });
@@ -124,18 +133,18 @@ describe("Sentences", () => {
     fireEvent.click(await screen.findByRole("button", { name: "保存" }));
     await waitFor(() => expect(calls.some((c) => c.path === "/api/sentences?force=1")).toBe(true));
     expect(confirm).toHaveBeenCalledWith("次の単語が文章に含まれていません: wb、wc。このまま保存しますか？");
-    await waitFor(() => expect(sessionStorage.getItem(DRAFT_KEY)).toBeNull());
+    await waitFor(() => expect(sessionStorage.getItem(`${DRAFT_KEY}:u1`)).toBeNull());
   });
 
   it("確認でキャンセルすると保存しない", async () => {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(generated));
+    sessionStorage.setItem(`${DRAFT_KEY}:u1`, JSON.stringify(generated));
     handlers["/api/sentences"] = () => json({ warning: { missing: ["wb"] } });
     vi.spyOn(window, "confirm").mockReturnValue(false);
     renderPage(<Sentences />);
     fireEvent.click(await screen.findByRole("button", { name: "保存" }));
     await waitFor(() => expect(window.confirm).toHaveBeenCalled());
     expect(calls.some((c) => c.path === "/api/sentences?force=1")).toBe(false);
-    expect(sessionStorage.getItem(DRAFT_KEY)).not.toBeNull();
+    expect(sessionStorage.getItem(`${DRAFT_KEY}:u1`)).not.toBeNull();
   });
 });
 
@@ -151,6 +160,7 @@ describe("SentenceReview", () => {
     expect(judge().disabled).toBe(true);
     const blanks = screen.getAllByRole("button", { name: /空欄/ });
     expect(blanks).toHaveLength(2);
+    expect(blanks.map((b) => b.getAttribute("aria-label"))).toEqual(["空欄 1/2。押すと答えが見えます", "空欄 2/2。押すと答えが見えます"]);
     fireEvent.click(blanks[0]);
     expect(judge().disabled).toBe(true);
     fireEvent.click(screen.getAllByRole("button", { name: /空欄/ })[0]);
@@ -197,5 +207,17 @@ describe("SentenceReview", () => {
     await screen.findByText("STORY ・ 穴埋め");
     fireEvent.click(screen.getByRole("button", { name: "↶ 1つ戻す" }));
     await screen.findByText("STORY ・ 英文を思い出す");
+    expect(JSON.parse(localStorage.getItem(ANSWERED_KEY)!).ids).not.toContain("s:s2");
+  });
+
+  it("単語と文章が同じ id でも答えた記録は別々（文章を答えても単語は隠れない）", async () => {
+    localStorage.setItem(ANSWERED_KEY, JSON.stringify({ date: new Date().toLocaleDateString("sv"), ids: ["s:x"] }));
+    today = { words: [{ id: "x", english: "adapt", japanese: "適応する", stage: 1, stageDays: 1 }], sentences: [{ ...recall, id: "x" }] };
+    const { unmount } = renderPage(<SentenceReview />);
+    await screen.findByText("今日の復習はありません");
+    unmount();
+    const { Review } = await import("../src/pages/Review");
+    renderPage(<Review />);
+    await screen.findByText("REVIEW ・ 1 / 1");
   });
 });
