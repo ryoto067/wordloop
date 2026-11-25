@@ -1,26 +1,46 @@
-import { useEffect } from "react";
 import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router";
 import { BottomNav } from "./components/BottomNav";
-import { useMe } from "./lib/useMe";
+import { MeProvider, useMe } from "./lib/MeContext";
 import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
 import { Privacy } from "./pages/Privacy";
 import { Terms } from "./pages/Terms";
 
-// ログイン必須の画面。未ログインなら /login へ
-function Protected() {
-  const { me, loading } = useMe();
+// ログイン必須の画面。未ログイン(401)のときは api() が /login へ遷移させる
+export function ProtectedLayout() {
+  const { me, status, refresh } = useMe();
   const { pathname } = useLocation();
-  useEffect(() => {
-    if (!loading && !me) location.assign("/login");
-  }, [loading, me]);
   const showNav = ["/", "/review", "/sentences", "/records", "/settings"].includes(pathname);
   return (
     <div className={`app-shell ${showNav ? "" : "no-nav"}`}>
-      <Outlet />
+      {status === "offline" && (
+        <p role="status" className="banner">
+          オフラインです。つながると自動で同期します
+        </p>
+      )}
+      {status === "error" ? (
+        <div role="alert" className="notice">
+          <p>読み込めませんでした。</p>
+          <button type="button" className="btn-slant slant secondary" onClick={refresh}>
+            再読み込み
+          </button>
+        </div>
+      ) : me ? (
+        <Outlet />
+      ) : (
+        <p className="muted">読み込み中…</p>
+      )}
       {showNav && <BottomNav />}
     </div>
+  );
+}
+
+function Protected() {
+  return (
+    <MeProvider>
+      <ProtectedLayout />
+    </MeProvider>
   );
 }
 

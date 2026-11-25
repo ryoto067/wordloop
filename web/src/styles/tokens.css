@@ -72,6 +72,9 @@ h1, h2 { margin: 0; }
   text-decoration: none;
 }
 .btn-slant.secondary { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 2px var(--lime); }
+/* clip-path が outline を切るので、内側のリングと明るさ変化でフォーカスを示す */
+.btn-slant:focus-visible { outline: none; box-shadow: inset 0 0 0 4px var(--bg), inset 0 0 0 7px var(--text); filter: brightness(1.15); }
+.btn-slant.secondary:focus-visible { box-shadow: inset 0 0 0 4px var(--lime), inset 0 0 0 7px var(--text); background: #26262c; }
 .btn-slant:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 下部ナビ */
@@ -106,4 +109,5 @@ h1, h2 { margin: 0; }
   font: inherit; color: var(--text); background: var(--panel);
   border: 2px solid #3a3a42; padding: 12px; border-radius: 0;
 }
+.banner { background: var(--orange); color: var(--bg); font-weight: 800; padding: 8px 12px; margin: 0; }
 .notice { border-left: 3px solid var(--orange); background: var(--panel); padding: 10px 12px; margin: 0; }

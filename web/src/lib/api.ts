@@ -16,16 +16,11 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   let res: Response;
   try {
-    res = await fetch(path, {
-      ...init,
-      credentials: "include",
-      headers: {
-        ...(init.body ? { "content-type": "application/json" } : {}),
-        ...init.headers,
-      },
-    });
+    res = await fetch(path, { ...init, credentials: "include", headers });
   } catch {
     throw new OfflineError();
   }

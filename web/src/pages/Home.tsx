@@ -2,12 +2,12 @@ import { Link } from "react-router";
 import { Panel } from "../components/Panel";
 import { SlantLink } from "../components/SlantButton";
 import { StreakNumber } from "../components/StreakNumber";
-import { useMe } from "../lib/useMe";
+import { useMe } from "../lib/MeContext";
 
 // 仮のホーム。後続タスクで本実装に置き換える
 export function Home() {
-  const { me, loading } = useMe();
-  if (loading || !me) return <p className="muted">読み込み中…</p>;
+  const { me } = useMe();
+  if (!me) return <p className="muted">読み込み中…</p>;
   return (
     <>
       <div style={{ textAlign: "right" }}>

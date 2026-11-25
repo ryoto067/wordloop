@@ -43,3 +43,14 @@ describe("api()", () => {
     await expect(api("/api/me")).rejects.toMatchObject({ status: 500 });
   });
 });
+
+describe("api() headers", () => {
+  it("Headers インスタンスの init.headers を保ち、body があれば content-type を付ける", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await api("/api/x", { method: "POST", body: "{}", headers: new Headers({ "x-test": "1" }) });
+    const h = fetchMock.mock.calls[0][1].headers as Headers;
+    expect(h.get("x-test")).toBe("1");
+    expect(h.get("content-type")).toBe("application/json");
+  });
+});
