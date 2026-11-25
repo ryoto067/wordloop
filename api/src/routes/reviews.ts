@@ -97,6 +97,8 @@ function parseItems(body: unknown): Item[] | null {
   return items;
 }
 
+const MAX_ITEMS = 100;
+
 reviewRoutes.post("/api/reviews", requireUser, async (c) => {
   const userId = c.get("userId");
   const db = c.env.DB;
@@ -104,80 +106,117 @@ reviewRoutes.post("/api/reviews", requireUser, async (c) => {
   if (!user) return c.json({ error: "unauthorized" }, 401);
   const body = await c.req.json().catch(() => null);
   const items = parseItems(body);
-  if (!items) return c.json({ error: "invalid items" }, 400);
+  if (!items || items.length > MAX_ITEMS) return c.json({ error: "invalid items" }, 400);
+
+  // D1 の呼び出し回数を件数に比例させない: 重複チェックとカード取得で 1 バッチ、書き込みで 1 バッチ
+  const marks = (n: number) => Array.from({ length: n }, () => "?").join(",");
+  const ids = (k: Kind) => [...new Set(items.filter((i) => i.kind === k).map((i) => i.id))];
+  const clientIds = [...new Set(items.map((i) => i.clientId))];
+  const wIds = ids("word");
+  const sIds = ids("sentence");
+  const pre = await db.batch([
+    db.prepare(`SELECT client_id FROM word_reviews WHERE client_id IN (${marks(clientIds.length)})`).bind(...clientIds),
+    db.prepare(`SELECT client_id FROM sentence_reviews WHERE client_id IN (${marks(clientIds.length)})`).bind(...clientIds),
+    db
+      .prepare(`SELECT id, user_id, stage, anchor_on, next_review_on, status FROM words WHERE id IN (${marks(wIds.length)})`)
+      .bind(...wIds),
+    db
+      .prepare(`SELECT id, user_id, stage, anchor_on, next_review_on, status FROM sentences WHERE id IN (${marks(sIds.length)})`)
+      .bind(...sIds),
+  ]);
+  const seen = new Set<string>([
+    ...(pre[0].results as { client_id: string }[]).map((r) => r.client_id),
+    ...(pre[1].results as { client_id: string }[]).map((r) => r.client_id),
+  ]);
+  type Live = CardRow & { id: string; user_id: string };
+  const cards = new Map<string, Live>();
+  (pre[2].results as Live[]).forEach((r) => cards.set(`word:${r.id}`, r));
+  (pre[3].results as Live[]).forEach((r) => cards.set(`sentence:${r.id}`, r));
 
   items.sort((a, b) => a.at - b.at); // 安定ソート: 同時刻は送信順
-  let applied = 0;
-  let skipped = 0;
-  const touched = new Set<string>();
+  const stmts: D1PreparedStatement[] = [];
+  const reviewIdx: number[] = []; // stmts 内の review INSERT の位置（適用数は meta.changes で数える）
+  const dates = new Set<string>();
 
   for (const it of items) {
-    const t = T[it.kind];
-    const dup = await db
-      .prepare("SELECT 1 FROM word_reviews WHERE client_id = ?1 UNION ALL SELECT 1 FROM sentence_reviews WHERE client_id = ?1")
-      .bind(it.clientId)
-      .first();
-    const card = dup
-      ? null
-      : await db
-          .prepare(`SELECT stage, anchor_on, next_review_on, status FROM ${t.table} WHERE id = ? AND user_id = ?`)
-          .bind(it.id, userId)
-          .first<CardRow>();
-    if (!card || card.status !== "reviewing" || card.next_review_on === null) {
-      skipped++;
+    const card = cards.get(`${it.kind}:${it.id}`);
+    if (seen.has(it.clientId) || !card || card.user_id !== userId || card.status !== "reviewing" || card.next_review_on === null) {
       continue;
     }
+    seen.add(it.clientId);
+    const t = T[it.kind];
     const date = localDate(new Date(it.at), user.timezone);
     const intervals = user[it.kind];
-    const before: Card = { stage: card.stage, anchorOn: card.anchor_on, nextReviewOn: card.next_review_on };
-    const { graduated, ...after } = applyResult(before, it.result, date, intervals);
+    const { graduated, ...after } = applyResult(
+      { stage: card.stage, anchorOn: card.anchor_on, nextReviewOn: card.next_review_on },
+      it.result,
+      date,
+      intervals,
+    );
     const status = graduated ? (it.kind === "word" ? "waiting_sentence" : "mastered") : "reviewing";
     const prev = [card.stage, card.anchor_on, card.next_review_on, card.status] as const;
-    const review =
+    reviewIdx.push(stmts.length);
+    // 並行リクエストでも「500 にしない・二重適用しない」: review は ON CONFLICT DO NOTHING、
+    // 続く daily_activity とカード更新は直前の文が実際に行を変えたとき（changes() > 0）だけ動く。
+    stmts.push(
       it.kind === "word"
         ? db
             .prepare(
-              "INSERT INTO word_reviews (id, word_id, client_id, reviewed_on, result, prev_stage, prev_anchor_on, prev_next_review_on, prev_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              "INSERT INTO word_reviews (id, word_id, client_id, reviewed_on, result, prev_stage, prev_anchor_on, prev_next_review_on, prev_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING",
             )
             .bind(crypto.randomUUID(), it.id, it.clientId, date, it.result, ...prev)
         : db
             .prepare(
-              "INSERT INTO sentence_reviews (id, sentence_id, client_id, reviewed_on, mode, result, prev_stage, prev_anchor_on, prev_next_review_on, prev_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              "INSERT INTO sentence_reviews (id, sentence_id, client_id, reviewed_on, mode, result, prev_stage, prev_anchor_on, prev_next_review_on, prev_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO NOTHING",
             )
             .bind(
               crypto.randomUUID(), it.id, it.clientId, date,
               stageDays(intervals, card.stage) >= SENTENCE_RECALL_DAYS ? "recall" : "cloze",
               it.result, ...prev,
-            );
-    await db.batch([
-      review,
-      db
-        .prepare(`UPDATE ${t.table} SET stage = ?, anchor_on = ?, next_review_on = ?, status = ? WHERE id = ?`)
-        .bind(after.stage, after.anchorOn, after.nextReviewOn, status, it.id),
+            ),
       db
         .prepare(
-          "INSERT INTO daily_activity (user_id, date, reviews_done) VALUES (?, ?, 1) ON CONFLICT(user_id, date) DO UPDATE SET reviews_done = reviews_done + 1",
+          "INSERT INTO daily_activity (user_id, date, reviews_done) SELECT ?, ?, 1 WHERE changes() > 0 ON CONFLICT(user_id, date) DO UPDATE SET reviews_done = reviews_done + 1",
         )
         .bind(userId, date),
-    ]);
-    touched.add(date);
-    applied++;
+      db
+        .prepare(
+          `UPDATE ${t.table} SET stage = ?, anchor_on = ?, next_review_on = ?, status = ?
+           WHERE id = ? AND stage = ? AND anchor_on = ? AND next_review_on = ? AND status = 'reviewing' AND changes() > 0`,
+        )
+        .bind(after.stage, after.anchorOn, after.nextReviewOn, status, it.id, card.stage, card.anchor_on, card.next_review_on),
+    );
+    cards.set(`${it.kind}:${it.id}`, {
+      ...card, stage: after.stage, anchor_on: after.anchorOn, next_review_on: after.nextReviewOn, status,
+    });
+    dates.add(date);
   }
 
-  for (const date of touched) {
-    if (await noneDue(db, userId, date)) {
-      await db.prepare("UPDATE daily_activity SET cleared_all = 1 WHERE user_id = ? AND date = ?").bind(userId, date).run();
-    }
+  for (const date of dates) {
+    stmts.push(
+      db
+        .prepare(
+          `UPDATE daily_activity SET cleared_all = 1 WHERE user_id = ?1 AND date = ?2
+             AND NOT EXISTS (SELECT 1 FROM words WHERE user_id = ?1 AND status = 'reviewing' AND next_review_on <= ?2)
+             AND NOT EXISTS (SELECT 1 FROM sentences WHERE user_id = ?1 AND status = 'reviewing' AND next_review_on <= ?2)`,
+        )
+        .bind(userId, date),
+    );
+  }
+  let applied = 0;
+  if (stmts.length) {
+    const res = await db.batch(stmts);
+    applied = reviewIdx.filter((i) => res[i].meta.changes > 0).length;
   }
   const stats = await getTodayStats(db, userId, user.timezone, new Date());
-  return c.json({ applied, skipped, streak: stats.streak });
+  return c.json({ applied, skipped: items.length - applied, streak: stats.streak });
 });
 
 reviewRoutes.post("/api/reviews/undo", requireUser, async (c) => {
   const userId = c.get("userId");
   const db = c.env.DB;
-  const body = await c.req.json<{ clientId?: unknown }>().catch(() => ({}) as { clientId?: unknown });
-  if (typeof body.clientId !== "string" || !body.clientId) return c.json({ error: "clientId required" }, 400);
+  const body = await c.req.json<{ clientId?: unknown } | null>().catch(() => null);
+  if (typeof body?.clientId !== "string" || !body.clientId) return c.json({ error: "clientId required" }, 400);
 
   type ReviewRow = {
     rowid: number; card_id: string; reviewed_on: string;
