@@ -33,6 +33,7 @@ export function applyResult(
   }
 }
 
-export function applyRoundTestForgot(card: Card, today: string): Card {
-  return { stage: Math.max(card.stage - 1, 0), anchorOn: today, nextReviewOn: addDays(today, 1) }
+export function applyRoundTestForgot(card: Card, today: string, intervals: number[]): Card {
+  const stage = Math.min(card.stage, intervals.length - 1)
+  return { stage: Math.max(stage - 1, 0), anchorOn: today, nextReviewOn: addDays(today, 1) }
 }

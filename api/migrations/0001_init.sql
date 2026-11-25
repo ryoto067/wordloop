@@ -25,7 +25,7 @@ CREATE TABLE words (
   stage INTEGER NOT NULL DEFAULT 0,
   anchor_on TEXT NOT NULL,
   next_review_on TEXT,
-  status TEXT NOT NULL DEFAULT 'active', -- active / waiting_sentence / used 等
+  status TEXT NOT NULL DEFAULT 'active', -- reviewing / waiting_sentence / in_sentence
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (user_id, english)
 );

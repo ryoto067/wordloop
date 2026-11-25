@@ -60,6 +60,16 @@ describe('srs', () => {
 
   it('applyRoundTestForgot', () => {
     const c = { stage: 2, anchorOn: '2026-11-01', nextReviewOn: '2026-11-08' }
-    expect(applyRoundTestForgot(c, '2026-11-10')).toEqual({ stage: 1, anchorOn: '2026-11-10', nextReviewOn: '2026-11-11' })
+    expect(applyRoundTestForgot(c, '2026-11-10', [1, 3, 7])).toEqual({ stage: 1, anchorOn: '2026-11-10', nextReviewOn: '2026-11-11' })
+  })
+
+  it('applyRoundTestForgot: stage が段階数を超えていたら最終段階から 1 つ戻す', () => {
+    const c = { stage: 6, anchorOn: '2026-11-01', nextReviewOn: '2026-11-08' }
+    expect(applyRoundTestForgot(c, '2026-11-10', [1, 3, 7])).toEqual({ stage: 1, anchorOn: '2026-11-10', nextReviewOn: '2026-11-11' })
+  })
+
+  it('applyRoundTestForgot: stage 0 は 0 のまま', () => {
+    const c = { stage: 0, anchorOn: '2026-11-01', nextReviewOn: '2026-11-02' }
+    expect(applyRoundTestForgot(c, '2026-11-10', [1, 3, 7])).toEqual({ stage: 0, anchorOn: '2026-11-10', nextReviewOn: '2026-11-11' })
   })
 })
