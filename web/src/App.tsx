@@ -7,6 +7,8 @@ import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
 import { Privacy } from "./pages/Privacy";
 import { Review } from "./pages/Review";
+import { SentenceReview } from "./pages/SentenceReview";
+import { Sentences } from "./pages/Sentences";
 import { RoundStart } from "./pages/RoundStart";
 import { RoundTest } from "./pages/RoundTest";
 import { Terms } from "./pages/Terms";
@@ -66,8 +68,8 @@ export function App() {
           <Route path="/round/entry" element={<Entry />} />
           <Route path="/round/test" element={<RoundTest />} />
           <Route path="/review" element={<Review />} />
-          <Route path="/sentences" element={page("文章")} />
-          <Route path="/sentences/review" element={page("文章の復習")} />
+          <Route path="/sentences" element={<Sentences />} />
+          <Route path="/sentences/review" element={<SentenceReview />} />
           <Route path="/records" element={page("記録")} />
           <Route path="/settings" element={page("設定")} />
         </Route>

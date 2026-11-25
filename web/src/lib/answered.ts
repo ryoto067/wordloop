@@ -27,16 +27,25 @@ function write(v: Stored) {
   }
 }
 
+export type CardKind = "word" | "sentence";
+
+// 単語の id と文章の id がぶつからないよう、文章だけ接頭辞を付けて保存する（単語は従来どおり）
+export function answerKey(kind: CardKind, id: string): string {
+  return kind === "sentence" ? `s:${id}` : id;
+}
+
 export function answeredToday(): Set<string> {
   return new Set(read().ids);
 }
 
-export function markAnswered(id: string) {
+export function markAnswered(id: string, kind: CardKind = "word") {
   const v = read();
-  if (!v.ids.includes(id)) write({ ...v, ids: [...v.ids, id] });
+  const key = answerKey(kind, id);
+  if (!v.ids.includes(key)) write({ ...v, ids: [...v.ids, key] });
 }
 
-export function unmarkAnswered(id: string) {
+export function unmarkAnswered(id: string, kind: CardKind = "word") {
   const v = read();
-  write({ ...v, ids: v.ids.filter((x) => x !== id) });
+  const key = answerKey(kind, id);
+  write({ ...v, ids: v.ids.filter((x) => x !== key) });
 }
