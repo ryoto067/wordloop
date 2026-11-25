@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { OfflineError, api } from "./api";
+import { clearQueue, startAutoFlush } from "./offlineQueue";
 
 export type Me = {
   id: string;
@@ -17,6 +18,7 @@ export type MeStatus = "loading" | "ready" | "offline" | "error";
 export type MeState = { me: Me | null; status: MeStatus; refresh(): void };
 
 export const ME_CACHE_KEY = "wl_me";
+export const REVIEWS_TODAY_KEY = "wl_reviews_today";
 
 function readCache(): Me | null {
   try {
@@ -32,9 +34,12 @@ function readCache(): Me | null {
 export function clearMeCache() {
   try {
     localStorage.removeItem(ME_CACHE_KEY);
+    localStorage.removeItem(REVIEWS_TODAY_KEY);
   } catch {
     // 無視
   }
+  // 未送信キューもアカウントごとのデータなので一緒に消す
+  clearQueue().catch(() => {});
 }
 
 function writeCache(me: Me) {
@@ -51,6 +56,9 @@ export function MeProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ me: Me | null; status: MeStatus }>({ me: null, status: "loading" });
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  // 起動時と回線復帰時に、積んである送信を流す
+  useEffect(() => startAutoFlush(), []);
 
   useEffect(() => {
     let alive = true;

@@ -5,6 +5,7 @@ import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
 import { Privacy } from "./pages/Privacy";
+import { Review } from "./pages/Review";
 import { Terms } from "./pages/Terms";
 
 // ログイン必須の画面。未ログイン(401)のときは api() が /login へ遷移させる
@@ -60,7 +61,7 @@ export function App() {
           <Route path="/round/timer" element={page("暗記タイマー")} />
           <Route path="/round/entry" element={page("単語の登録")} />
           <Route path="/round/test" element={page("テスト")} />
-          <Route path="/review" element={page("復習")} />
+          <Route path="/review" element={<Review />} />
           <Route path="/sentences" element={page("文章")} />
           <Route path="/sentences/review" element={page("文章の復習")} />
           <Route path="/records" element={page("記録")} />
