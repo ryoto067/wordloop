@@ -4,6 +4,7 @@ import { Panel } from "../components/Panel";
 import { SlantLink } from "../components/SlantButton";
 import { StreakNumber } from "../components/StreakNumber";
 import { useMe } from "../lib/MeContext";
+import { needsInstall } from "../lib/push";
 import { loadDraft, resumePath } from "../lib/roundDraft";
 
 export function Home() {
@@ -18,6 +19,11 @@ export function Home() {
           ⚙
         </Link>
       </div>
+      {needsInstall() && (
+        <Link to="/install" className="banner" style={{ textDecoration: "none" }}>
+          ホーム画面に追加すると通知が使えます
+        </Link>
+      )}
       <StreakNumber days={me.streak} />
       <Link to="/review" style={{ color: "inherit", textDecoration: "none" }}>
         <Panel label="単語の復習">{dueWords}</Panel>

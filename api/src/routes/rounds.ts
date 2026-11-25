@@ -114,6 +114,21 @@ roundRoutes.get("/api/sets", requireUser, async (c) => {
   return c.json(results);
 });
 
+roundRoutes.get("/api/sets/:id/rounds", requireUser, async (c) => {
+  const userId = c.get("userId");
+  const set = await c.env.DB.prepare("SELECT id FROM word_sets WHERE id = ? AND user_id = ?").bind(c.req.param("id"), userId).first();
+  if (!set) return c.json({ error: "not found" }, 404);
+  const { results } = await c.env.DB.prepare(
+    `SELECT r.round_no AS roundNo, r.started_at AS startedAt, r.duration_sec AS durationSec,
+            (SELECT COUNT(*) FROM round_tests t WHERE t.round_id = r.id AND t.result = 'remembered') AS remembered,
+            (SELECT COUNT(*) FROM round_tests t WHERE t.round_id = r.id AND t.result = 'forgot') AS forgot
+     FROM study_rounds r WHERE r.set_id = ? AND r.user_id = ? ORDER BY r.round_no`,
+  )
+    .bind(set.id, userId)
+    .all();
+  return c.json(results);
+});
+
 roundRoutes.post("/api/rounds/next", requireUser, async (c) => {
   const userId = c.get("userId");
   const user = await getUser(c.env.DB, userId);

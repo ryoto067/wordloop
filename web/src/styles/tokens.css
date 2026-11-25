@@ -144,3 +144,37 @@ h1, h2 { margin: 0; }
 .blank.open { background: transparent; color: var(--lime); box-shadow: inset 0 -3px 0 var(--lime); padding: 0 4px; }
 .story-edit { font: inherit; color: var(--text); background: var(--bg); border: 2px solid #3a3a42; border-radius: 0; padding: 10px; width: 100%; box-sizing: border-box; min-height: 7em; }
 .story-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* 設定・記録・インストール */
+.set-group { display: flex; flex-direction: column; gap: 10px; border: 0; border-top: 2px solid #26262c; padding: 14px 0 0; margin: 0; min-width: 0; }
+.set-group legend { font-weight: 800; padding: 0 8px 0 0; }
+.set-group h2 { font-size: 1.125rem; }
+.interval-list, .time-list, .rec-list, .round-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.interval-list li, .time-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.interval-list label { display: flex; align-items: center; gap: 8px; }
+.interval-list input, .time-list input, .time-add input, .rec-item input {
+  font: inherit; color: var(--text); background: var(--panel); border: 2px solid #3a3a42; border-radius: 0; padding: 8px 10px; min-height: 44px;
+}
+.interval-list input { width: 5.5em; }
+.time-add { display: flex; gap: 10px; align-items: center; }
+.time-add .btn-slant { width: auto; padding: 12px 24px; }
+.seg { flex: 1; font: inherit; font-weight: 800; color: var(--text); background: var(--panel); border: 2px solid #3a3a42; border-radius: 0; min-height: 44px; cursor: pointer; }
+.seg.on { background: var(--lime); color: var(--bg); border-color: var(--lime); }
+.seg:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.tabs { display: flex; gap: 6px; }
+.tabs .seg { font-size: 0.8125rem; padding: 0 4px; }
+.rec-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--panel); border-left: 3px solid var(--lime); padding: 8px 12px; }
+.rec-item.col { flex-direction: column; align-items: stretch; }
+.rec-item .field { flex: 1; gap: 6px; }
+.rec-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.rec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: inherit; color: var(--text); background: none; border: 0; text-align: left; padding: 8px 0; min-height: 44px; cursor: pointer; }
+.round-list { padding-bottom: 6px; font-size: 0.875rem; }
+.cal-head { display: flex; justify-content: space-between; align-items: center; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; font-size: 0.75rem; }
+.cal-day { min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.8125rem; background: var(--panel); line-height: 1.2; }
+.cal-day.ok { background: var(--lime); color: var(--bg); font-weight: 900; }
+.cal-day.today { box-shadow: inset 0 0 0 2px var(--orange); }
+.install-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.install-steps li { display: flex; gap: 14px; align-items: center; }
+.install-n { font-size: 2rem; color: var(--lime); min-width: 1.2em; }

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authRoutes } from "./auth/google";
 import type { AppEnv, Env } from "./env";
 import { runCron } from "./push/cron";
+import { activityRoutes } from "./routes/activity";
 import { meRoutes } from "./routes/me";
 import { pushRoutes } from "./routes/push";
 import { settingsRoutes } from "./routes/settings";
@@ -21,6 +22,7 @@ app.route("/", reviewRoutes);
 app.route("/", sentenceRoutes);
 app.route("/", settingsRoutes);
 app.route("/", pushRoutes);
+app.route("/", activityRoutes);
 
 async function scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
   ctx.waitUntil(runCron(env, new Date(event.scheduledTime)));
