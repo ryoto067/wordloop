@@ -1,12 +1,16 @@
 import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router";
 import { BottomNav } from "./components/BottomNav";
 import { MeProvider, useMe } from "./lib/MeContext";
+import { Entry } from "./pages/Entry";
 import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { Placeholder } from "./pages/Placeholder";
 import { Privacy } from "./pages/Privacy";
 import { Review } from "./pages/Review";
+import { RoundStart } from "./pages/RoundStart";
+import { RoundTest } from "./pages/RoundTest";
 import { Terms } from "./pages/Terms";
+import { Timer } from "./pages/Timer";
 
 // ログイン必須の画面。未ログイン(401)のときは api() が /login へ遷移させる
 export function ProtectedLayout() {
@@ -57,10 +61,10 @@ export function App() {
         <Route path="/install" element={page("ホーム画面に追加")} />
         <Route element={<Protected />}>
           <Route path="/" element={<Home />} />
-          <Route path="/round/start" element={page("暗記スタート")} />
-          <Route path="/round/timer" element={page("暗記タイマー")} />
-          <Route path="/round/entry" element={page("単語の登録")} />
-          <Route path="/round/test" element={page("テスト")} />
+          <Route path="/round/start" element={<RoundStart />} />
+          <Route path="/round/timer" element={<Timer />} />
+          <Route path="/round/entry" element={<Entry />} />
+          <Route path="/round/test" element={<RoundTest />} />
           <Route path="/review" element={<Review />} />
           <Route path="/sentences" element={page("文章")} />
           <Route path="/sentences/review" element={page("文章の復習")} />

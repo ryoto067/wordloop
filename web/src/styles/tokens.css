@@ -105,7 +105,7 @@ h1, h2 { margin: 0; }
 
 /* フォーム */
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field input {
+.field input, .field select {
   font: inherit; color: var(--text); background: var(--panel);
   border: 2px solid #3a3a42; padding: 12px; border-radius: 0;
 }
