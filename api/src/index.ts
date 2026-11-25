@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { authRoutes } from "./auth/google";
 import type { AppEnv, Env } from "./env";
+import { runCron } from "./push/cron";
 import { meRoutes } from "./routes/me";
+import { pushRoutes } from "./routes/push";
+import { settingsRoutes } from "./routes/settings";
 import { roundRoutes } from "./routes/rounds";
 import { reviewRoutes } from "./routes/reviews";
 import { sentenceRoutes } from "./routes/sentences";
@@ -16,8 +19,11 @@ app.route("/", wordRoutes);
 app.route("/", roundRoutes);
 app.route("/", reviewRoutes);
 app.route("/", sentenceRoutes);
+app.route("/", settingsRoutes);
+app.route("/", pushRoutes);
 
-// 通知の送信は Task 9 で実装する
-async function scheduled(_event: ScheduledController, _env: Env, _ctx: ExecutionContext) {}
+async function scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
+  ctx.waitUntil(runCron(env, new Date(event.scheduledTime)));
+}
 
 export default { fetch: app.fetch, scheduled };
