@@ -224,7 +224,8 @@ function jsonPost(body: unknown): RequestInit {
 
 describe("POST /api/auth/dev-login", () => {
   it("DEV_LOGIN 未設定は 404", async () => {
-    const res = await req("/api/auth/dev-login", jsonPost({ email: "dev@example.com" }));
+    // api/.dev.vars に DEV_LOGIN=1 があっても影響を受けないよう、明示的に未設定にする
+    const res = await req("/api/auth/dev-login", jsonPost({ email: "dev@example.com" }), { ...env, DEV_LOGIN: undefined });
     expect(res.status).toBe(404);
   });
 

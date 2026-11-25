@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
@@ -11,13 +11,18 @@ const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/${n
 
 // SQL はファイル経由で渡す（シェルのクォート問題を避ける）
 function d1(sql: string): string {
-  const file = join(mkdtempSync(join(tmpdir(), "wl-e2e-")), "q.sql");
+  const dir = mkdtempSync(join(tmpdir(), "wl-e2e-"));
+  const file = join(dir, "q.sql");
   writeFileSync(file, sql);
-  return execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--local", "--json", "--file", file], {
-    cwd: "../api",
-    encoding: "utf8",
-    shell: true,
-  });
+  try {
+    return execFileSync("npx", ["wrangler", "d1", "execute", "DB", "--local", "--json", "--file", file], {
+      cwd: "../api",
+      encoding: "utf8",
+      shell: true,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 const todayJst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());

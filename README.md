@@ -67,7 +67,7 @@ wordloop/
 ## テスト
 
 ```bash
-# API（.dev.vars の DEV_LOGIN=1 があると 1 件失敗するので、テスト時は .dev.vars を退避するか DEV_LOGIN の行を消す）
+# API
 cd api && npx vitest run && npx tsc --noEmit
 
 # 画面の単体テスト
