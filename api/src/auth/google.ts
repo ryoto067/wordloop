@@ -51,14 +51,20 @@ authRoutes.get("/api/auth/google", async (c) => {
 });
 
 authRoutes.get("/api/auth/google/callback", async (c) => {
+  const fail = (code: "denied" | "failed") => c.redirect(`/login?error=${code}`, 302);
+  const oauthError = c.req.query("error");
+  if (oauthError) {
+    deleteCookie(c, STATE_COOKIE, { path: "/", secure: true });
+    return fail(oauthError === "access_denied" ? "denied" : "failed");
+  }
   const code = c.req.query("code");
   const state = c.req.query("state");
   const cookie = getCookie(c, STATE_COOKIE);
   deleteCookie(c, STATE_COOKIE, { path: "/", secure: true });
-  if (!code || !state || !cookie) return c.json({ error: "invalid_state" }, 400);
+  if (!code || !state || !cookie) return fail("failed");
   const [cState, cSig] = cookie.split(".");
   if (!cState || !cSig || !safeEqual(cState, state) || !safeEqual(cSig, await hmac(c.env.SESSION_SECRET, cState))) {
-    return c.json({ error: "invalid_state" }, 400);
+    return fail("failed");
   }
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -72,9 +78,9 @@ authRoutes.get("/api/auth/google/callback", async (c) => {
       grant_type: "authorization_code",
     }),
   });
-  if (!tokenRes.ok) return c.json({ error: "token_exchange_failed" }, 400);
+  if (!tokenRes.ok) return fail("failed");
   const { id_token } = (await tokenRes.json()) as { id_token?: string };
-  if (!id_token) return c.json({ error: "token_exchange_failed" }, 400);
+  if (!id_token) return fail("failed");
 
   let payload;
   try {
@@ -83,10 +89,10 @@ authRoutes.get("/api/auth/google/callback", async (c) => {
       audience: c.env.GOOGLE_CLIENT_ID,
     }));
   } catch {
-    return c.json({ error: "invalid_id_token" }, 400);
+    return fail("failed");
   }
   const email = typeof payload.email === "string" ? payload.email : null;
-  if (!payload.sub || !email) return c.json({ error: "invalid_id_token" }, 400);
+  if (!payload.sub || !email) return fail("failed");
 
   const userId = await upsertUser(c.env.DB, {
     googleSub: payload.sub,

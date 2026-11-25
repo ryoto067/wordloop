@@ -72,25 +72,40 @@ describe("GET /api/auth/google", () => {
 });
 
 describe("GET /api/auth/google/callback", () => {
-  it("state 不一致は 400", async () => {
+  it("state 不一致は /login?error=failed へ 302", async () => {
     const { stateCookie } = await startLogin();
     const res = await req("/api/auth/google/callback?code=abc&state=wrong", {
       headers: { cookie: `wl_state=${stateCookie}` },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
   });
 
-  it("state Cookie なしは 400", async () => {
+  it("state Cookie なしは /login?error=failed へ 302", async () => {
     const res = await req("/api/auth/google/callback?code=abc&state=x");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
   });
 
-  it("Cookie の署名が改ざんされていたら 400", async () => {
+  it("Cookie の署名が改ざんされていたら /login?error=failed へ 302", async () => {
     const { state } = await startLogin();
     const res = await req(`/api/auth/google/callback?code=abc&state=${state}`, {
       headers: { cookie: `wl_state=${state}.forged` },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
+  });
+
+  it("Google が access_denied を返したら /login?error=denied へ 302", async () => {
+    const res = await req("/api/auth/google/callback?error=access_denied");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=denied");
+  });
+
+  it("access_denied 以外の error は /login?error=failed へ 302", async () => {
+    const res = await req("/api/auth/google/callback?error=server_error");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
   });
 
   it("正常: 302 + wl_session、users 1 行・notify_times 2 行、/api/me が通る", async () => {
@@ -160,13 +175,14 @@ describe("GET /api/auth/google/callback", () => {
   it.each([
     ["aud が違う", { aud: "someone-else" }],
     ["iss が違う", { iss: "https://evil.example.com" }],
-  ])("id_token の %s は 400 でセッションを作らない", async (_name, over) => {
+  ])("id_token の %s は /login?error=failed へ 302 でセッションを作らない", async (_name, over) => {
     mockGoogle(await signIdToken({ ...over, sub: "google-sub-bad", email: "bad@example.com" }));
     const { stateCookie, state } = await startLogin();
     const res = await req(`/api/auth/google/callback?code=abc&state=${state}`, {
       headers: { cookie: `wl_state=${stateCookie}` },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=failed");
     expect(cookieValue(res, "wl_session")).toBeUndefined();
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE google_sub = 'google-sub-bad'").first<{ n: number }>();
     expect(n!.n).toBe(0);

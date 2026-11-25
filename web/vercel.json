@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://wordloop-api.<account>.workers.dev/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
