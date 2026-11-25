@@ -21,9 +21,19 @@ export const ME_CACHE_KEY = "wl_me";
 function readCache(): Me | null {
   try {
     const raw = localStorage.getItem(ME_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as Me) : null;
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<Me> | null;
+    return v && typeof v.id === "string" && v.today && typeof v.today === "object" ? (v as Me) : null;
   } catch {
     return null;
+  }
+}
+
+export function clearMeCache() {
+  try {
+    localStorage.removeItem(ME_CACHE_KEY);
+  } catch {
+    // 無視
   }
 }
 
@@ -56,7 +66,8 @@ export function MeProvider({ children }: { children: ReactNode }) {
           const cached = readCache();
           setState(cached ? { me: cached, status: "offline" } : { me: null, status: "error" });
         } else if ((err as { status?: number }).status === 401) {
-          // api() が /login へ遷移させる。ここでは何も表示しない
+          // api() が /login へ遷移させる。前のアカウントの情報を残さない
+          clearMeCache();
           setState({ me: null, status: "loading" });
         } else {
           setState({ me: null, status: "error" });
@@ -66,6 +77,21 @@ export function MeProvider({ children }: { children: ReactNode }) {
       alive = false;
     };
   }, [tick]);
+
+  // オフライン中は、回線の復帰・画面の再表示で自動的に取り直す
+  const offline = state.status === "offline";
+  useEffect(() => {
+    if (!offline) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [offline, refresh]);
 
   useEffect(() => {
     if (state.me) document.documentElement.style.setProperty("--font-scale", String(state.me.fontScale));
