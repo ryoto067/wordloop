@@ -12,7 +12,7 @@ export function Terms() {
       <h2>免責</h2>
       <p>学習効果や、AI が作る文章・意味の正確性を保証するものではありません。データの消失などによる損害について、運営者は責任を負いません。</p>
       <h2>削除・お問い合わせ</h2>
-      <p>データの削除依頼やお問い合わせは、運営者（連絡先: ryoto067@users.noreply.github.com）までご連絡ください。</p>
+      <p>データの削除依頼やお問い合わせは、運営者の<a href="https://forms.gle/tWHzpoi1VHqEvD7U6" target="_blank" rel="noopener noreferrer">お問い合わせフォーム</a>からご連絡ください。</p>
     </LegalPage>
   );
 }

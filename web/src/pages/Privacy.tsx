@@ -10,7 +10,7 @@ export function Privacy() {
       <h2>AI への送信</h2>
       <p>文章の生成機能では、登録した単語を AI サービスに送信して文章を作ります。送信するのは生成に必要な単語とその意味などのみで、氏名やメールアドレスは送信しません。</p>
       <h2>削除のご依頼</h2>
-      <p>アカウントと保存データの削除をご希望の場合は、運営者（連絡先: ryoto067@users.noreply.github.com）までご連絡ください。確認後、速やかに削除します。</p>
+      <p>アカウントと保存データの削除をご希望の場合は、運営者の<a href="https://forms.gle/tWHzpoi1VHqEvD7U6" target="_blank" rel="noopener noreferrer">お問い合わせフォーム</a>からご連絡ください。確認後、速やかに削除します。</p>
     </LegalPage>
   );
 }
