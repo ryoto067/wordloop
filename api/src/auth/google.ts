@@ -51,20 +51,23 @@ authRoutes.get("/api/auth/google", async (c) => {
 });
 
 authRoutes.get("/api/auth/google/callback", async (c) => {
-  const fail = (code: "denied" | "failed") => c.redirect(`/login?error=${code}`, 302);
+  const fail = (code: "denied" | "failed", reason: string = code) => {
+    console.warn(`[auth] callback failed: ${reason}`);
+    return c.redirect(`/login?error=${code}`, 302);
+  };
   const oauthError = c.req.query("error");
   if (oauthError) {
     deleteCookie(c, STATE_COOKIE, { path: "/", secure: true });
-    return fail(oauthError === "access_denied" ? "denied" : "failed");
+    return fail(oauthError === "access_denied" ? "denied" : "failed", `google_error:${oauthError}`);
   }
   const code = c.req.query("code");
   const state = c.req.query("state");
   const cookie = getCookie(c, STATE_COOKIE);
   deleteCookie(c, STATE_COOKIE, { path: "/", secure: true });
-  if (!code || !state || !cookie) return fail("failed");
+  if (!code || !state || !cookie) return fail("failed", `missing:${!code ? "code" : ""}${!state ? "state" : ""}${!cookie ? "cookie" : ""}`);
   const [cState, cSig] = cookie.split(".");
   if (!cState || !cSig || !safeEqual(cState, state) || !safeEqual(cSig, await hmac(c.env.SESSION_SECRET, cState))) {
-    return fail("failed");
+    return fail("failed", "state_mismatch");
   }
 
   let id_token: string | undefined;
@@ -80,12 +83,15 @@ authRoutes.get("/api/auth/google/callback", async (c) => {
         grant_type: "authorization_code",
       }),
     });
-    if (!tokenRes.ok) return fail("failed");
+    if (!tokenRes.ok) {
+      const detail = await tokenRes.text().catch(() => "");
+      return fail("failed", `token_${tokenRes.status}:${detail.slice(0, 200)}`);
+    }
     ({ id_token } = (await tokenRes.json()) as { id_token?: string });
-  } catch {
-    return fail("failed");
+  } catch (e) {
+    return fail("failed", `token_fetch:${String(e)}`);
   }
-  if (!id_token) return fail("failed");
+  if (!id_token) return fail("failed", "no_id_token");
 
   let payload;
   try {
@@ -93,11 +99,11 @@ authRoutes.get("/api/auth/google/callback", async (c) => {
       issuer: ["https://accounts.google.com", "accounts.google.com"],
       audience: c.env.GOOGLE_CLIENT_ID,
     }));
-  } catch {
-    return fail("failed");
+  } catch (e) {
+    return fail("failed", `verify:${String(e)}`);
   }
   const email = typeof payload.email === "string" ? payload.email : null;
-  if (!payload.sub || !email) return fail("failed");
+  if (!payload.sub || !email) return fail("failed", "no_sub_or_email");
 
   const userId = await upsertUser(c.env.DB, {
     googleSub: payload.sub,
