@@ -9,8 +9,8 @@ APP_ORIGIN = "http://localhost:5173"
 [[d1_databases]]
 binding = "DB"
 database_name = "wordloop"
-# Task 14 で `wrangler d1 create wordloop` の実 ID に差し替える
-database_id = "local-placeholder"
+# 本番 D1（2026-11-26 作成）
+database_id = "8729bd8b-7371-4d0d-b999-22835fa905ae"
 migrations_dir = "migrations"
 
 [ai]
