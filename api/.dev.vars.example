@@ -10,3 +10,5 @@ VAPID_SUBJECT=mailto:you@example.com
 # CLAUDE_MODEL=claude-sonnet-5-5
 # ローカル開発のみ: ログインを省略する
 # DEV_LOGIN=1
+# ローカル開発では本番 URL ではなくローカルを指定する（wrangler.toml の本番値を上書き）
+APP_ORIGIN=http://localhost:5173
