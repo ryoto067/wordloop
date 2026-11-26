@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://wordloop-api.<account>.workers.dev/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://wordloop-api.ryoto-onuma067.workers.dev/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
