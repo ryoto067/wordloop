@@ -81,20 +81,30 @@ export function Entry() {
     jaRef.current?.focus();
   };
 
-  const onJapaneseKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter" || isComposingEnter(e)) return;
-    e.preventDefault();
+  // 入力中の 1 語を一覧に入れた単語リストを返す（英語・日本語の両方があるときだけ）
+  const withPending = (): DraftWord[] => {
     const w: DraftWord = { english: english.trim(), japanese: japanese.trim() };
-    if (!w.english) return enRef.current?.focus();
-    if (!w.japanese) return;
+    if (!w.english || !w.japanese) return draft.words;
     const words = [...draft.words];
     if (editIndex !== null) words[editIndex] = w;
     else words.push(w);
-    update({ ...draft, words });
+    return words;
+  };
+
+  const addWord = () => {
+    if (!english.trim()) return enRef.current?.focus();
+    if (!japanese.trim()) return jaRef.current?.focus();
+    update({ ...draft, words: withPending() });
     setEnglish("");
     setJapanese("");
     setEditIndex(null);
     enRef.current?.focus();
+  };
+
+  const onJapaneseKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter" || isComposingEnter(e)) return;
+    e.preventDefault();
+    addWord();
   };
 
   const edit = (i: number) => {
@@ -122,15 +132,16 @@ export function Entry() {
   const link = new Set(draft.link ?? []);
 
   const save = async () => {
-    if (draft.words.length === 0 || saving) return;
+    const words = withPending();
+    if (words.length === 0 || saving) return;
     setSaving(true);
     setError(null);
     const sec = elapsedSec(draft, Date.now());
-    const present = new Set(draft.words.map((w) => key(w.english)));
+    const present = new Set(words.map((w) => key(w.english)));
     const body = {
       startedAt: draft.startedAt,
       durationSec: sec,
-      words: draft.words.map((w) => ({ english: w.english, japanese: w.japanese })),
+      words: words.map((w) => ({ english: w.english, japanese: w.japanese })),
       linkExisting: [...link].filter((e) => present.has(e) && existing[e]).map((e) => existing[e].english),
     };
     try {
@@ -140,7 +151,7 @@ export function Entry() {
       });
       const pending = (await size()) > 0;
       clearDraft();
-      setSaved({ count: draft.words.length, sec, pending, offline: !navigator.onLine });
+      setSaved({ count: words.length, sec, pending, offline: !navigator.onLine });
       refresh();
     } catch {
       setError("保存できませんでした。もう一度お試しください");
@@ -151,6 +162,9 @@ export function Entry() {
   return (
     <>
       <div className="tag">ENTRY ・ {editIndex === null ? draft.words.length + 1 : editIndex + 1} 語目</div>
+      <p className="muted" style={{ margin: 0, fontSize: "0.9em" }}>
+        英単語と日本語訳を入れて「＋ 追加」（またはキーボードの改行）で次の単語へ。全部入れたら「保存して完了」。一覧の単語はタップで直せます。
+      </p>
       <label className="field">
         <span>英単語</span>
         <input
@@ -177,6 +191,9 @@ export function Entry() {
         <span>日本語訳</span>
         <input ref={jaRef} value={japanese} enterKeyHint="done" onChange={(e) => setJapanese(e.target.value)} onKeyDown={onJapaneseKey} />
       </label>
+      <SlantButton variant="secondary" disabled={!english.trim() || !japanese.trim()} onClick={addWord}>
+        {editIndex === null ? "＋ 追加" : "＋ 修正を反映"}
+      </SlantButton>
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
         {draft.words.map((w, i) => (
           <li key={i} className="panel-cut" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -200,7 +217,7 @@ export function Entry() {
           {error}
         </p>
       )}
-      <SlantButton disabled={draft.words.length === 0 || saving} onClick={() => void save()}>
+      <SlantButton disabled={withPending().length === 0 || saving} onClick={() => void save()}>
         保存して完了
       </SlantButton>
       <AbandonButton />

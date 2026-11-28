@@ -122,4 +122,33 @@ describe("Entry", () => {
     renderEntry();
     expect(screen.getByText("TIMER")).toBeTruthy();
   });
+
+  it("操作方法の説明が表示される", () => {
+    renderEntry();
+    expect(screen.getByText(/英単語と日本語訳を入れて「＋ 追加」/)).toBeTruthy();
+  });
+
+  it("「＋ 追加」ボタンで一覧に追加して英単語の欄に戻る（両方入力するまで押せない）", () => {
+    renderEntry();
+    const add = screen.getByRole("button", { name: "＋ 追加" }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("英単語"), { target: { value: "abandon" } });
+    expect(add.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("日本語訳"), { target: { value: "断念する" } });
+    expect(add.disabled).toBe(false);
+    fireEvent.click(add);
+    expect(loadDraft()?.words).toEqual([{ english: "abandon", japanese: "断念する" }]);
+    expect((screen.getByLabelText("英単語") as HTMLInputElement).value).toBe("");
+    expect(document.activeElement).toBe(screen.getByLabelText("英単語"));
+  });
+
+  it("入力途中の 1 語も「保存して完了」で一緒に保存される", async () => {
+    renderEntry();
+    fireEvent.change(screen.getByLabelText("英単語"), { target: { value: "adapt" } });
+    fireEvent.change(screen.getByLabelText("日本語訳"), { target: { value: "適応する" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存して完了" }));
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/rounds/first")).toBe(true));
+    const sent = calls.find((c) => c.path === "/api/rounds/first")!.body;
+    expect(sent.words).toEqual([{ english: "adapt", japanese: "適応する" }]);
+  });
 });
